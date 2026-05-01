@@ -232,7 +232,7 @@ def _format_ote_table(df: pd.DataFrame, title: str) -> str:
     return header + df.to_csv(index=True)
 
 
-def _get_official_exchange_rate(delivery_date: str) -> float:
+def get_official_exchange_rate(delivery_date: str) -> float:
     """Fetch the official EUR/CZK exchange rate from OTE DAM Index.
     Queries a 7-day window to ensure we find the most recent published rate.
     """
@@ -404,7 +404,7 @@ def get_imbalance_settlement(
     version: Annotated[int, "Settlement version: 0=daily, 1=monthly, 2=final"] = 0,
 ) -> str:
     """Fetch Czech imbalance settlement data."""
-    exchange_rate = _get_official_exchange_rate(delivery_date)
+    exchange_rate = get_official_exchange_rate(delivery_date)
 
     def fetch():
         params = {

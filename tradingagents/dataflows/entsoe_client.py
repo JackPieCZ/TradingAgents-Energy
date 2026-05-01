@@ -27,6 +27,7 @@ from entsoe.entsoe import EntsoePandasClient
 from entsoe.exceptions import NoMatchingDataError, InvalidBusinessParameterError
 
 try:
+    from .ote_client import get_official_exchange_rate
     from .config import get_config
     from .energy_utils import (
         get_entsoe_area_code,
@@ -38,6 +39,7 @@ try:
     )
     from . import cache_layer
 except ImportError:
+    from ote_client import get_official_exchange_rate
     from config import get_config
     from energy_utils import (
         get_entsoe_area_code,
@@ -740,8 +742,21 @@ def query_imbalance_prices(
         logger.warning(f"No imbalance data available for {market_area} on {delivery_date}")
         return f"# No imbalance data for {market_area} on {delivery_date}"
 
+    # Currency conversion for CZ
+    exchange_rate = None
+    if market_area.upper() == "CZ" and not df.empty:
+        exchange_rate = get_official_exchange_rate(delivery_date)
+        for col in df.columns:
+            if "Price" in col or "Cost" in col or "EUR" in col:
+                df[col] = (df[col] / exchange_rate).round(3)
+
     df = _format_index(df.copy())
-    header = f"# Imbalance Prices and Volumes for {market_area} on {delivery_date}\n# Source: ENTSO-E\n# Unit: EUR/MWh (Prices), MW (Volumes)\n\n"
+    
+    header = f"# Imbalance Prices and Volumes for {market_area} on {delivery_date}\n# Source: ENTSO-E\n# Unit: EUR/MWh (Prices), MW (Volumes)\n"
+    if exchange_rate is not None:
+        header += f"# Note: Financial values converted from CZK to EUR at official rate of {exchange_rate} CZK/EUR\n"
+    header += "\n"
+    
     return header + df.to_csv()
 
 
