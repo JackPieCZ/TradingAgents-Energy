@@ -45,3 +45,43 @@ Sent request for manual password
 I also fixed the unreadable Balardy paper and added BalardyEmpiricalAnalysisBidask2022 OCR.pdf to your context
 ```
 
+
+Suggested entsoe client improvements for overall project results
+Based on the ENTSO-E documentation, your client is now extracting the absolute highest-value signals available for the algorithms described in your papers.
+
+The only remaining improvement is informational context mapping for the LLM.
+
+While your data layer is perfect, the System State Analyst agent down the line might not know how to interpret "Imbalance Volume: 400 MW". Is that a lot?
+
+Future Improvement (in the Agent Prompt, not the Client): When you move to Phase 3 (Prompts), ensure the System State Analyst prompt explains that positive imbalance volumes generally indicate the system is long (oversupplied) and negative means short (undersupplied). Because different TSOs use different sign conventions, establishing this rule in the prompt will maximize the value of the query_imbalance_prices data you just successfully engineered.
+
+Activated Balancing Energy (query_activated_balancing_energy):
+As you saw in the DE-LU log, Imbalance Prices can be delayed. If you find the agents need a real-time proxy for how stressed the grid is, the ENTSO-E API offers the "Activated Balancing Energy" endpoint. This tells you exactly how many Megawatts of emergency reserves the TSO is currently firing up. It is an incredible proxy for system tension when imbalance prices are missing.
+
+Look-Ahead Bias in Backtesting (Phase 7 Pre-warning):
+Right now, when you request query_actual_generation for a full day, the client pulls the whole day. When you build the Backtesting Engine (Phase 7), you will need to pass an end parameter that matches the trade_timestamp to ensure the agent doesn't "see into the future" of actual generation that hasn't happened yet. The entsoe-py library naturally supports this because you are already passing start and end datetimes.
+
+Looking closely at the uzivatelsky-manual_webove_sluzby_ote_g.pdf, there is one excellent structural improvement you can leverage during Phase 7 (Backtesting):  
+
+Leverage Final Imbalance Versioning (Version=2)
+Currently, get_imbalance_settlement defaults to version=0 (Daily Preliminary Settlement). This is the correct version for live trading because it's available immediately the next day.
+
+However, when you run your backtesting engine (Phase 7) over historical data (e.g., year 2023), you should explicitly override this and call get_imbalance_settlement(date, version=2). Version 2 represents the Final Monthly Settlement. It includes subsequent physical meter corrections and is mathematically the exact financial penalty your simulated firm would have actually paid for carrying an imbalance. Utilizing version=2 will radically increase the realism and accuracy of your backtesting P&L tracking.
+We noted this previously, but it is the single most important integration tip for the next stages of your project.
+
+Use Version=2 in Phase 7 (Backtesting Engine)
+The OTE manual highlights three versions for the GetImbalanceSettlementE endpoint:  
+
+0: Daily (Preliminary)
+
+1: Monthly
+
+2: Final Monthly
+
+Because power meters are corrected over several weeks, the initial daily imbalance costs (version=0) are estimates. When you begin building your EnergyBacktestEngine (STRATEGY Phase 7), ensure the engine explicitly overrides the default and calls get_imbalance_settlement(date, version=2). This ensures your simulated P&L is evaluated against the exact financial penalties that traders actually paid, eliminating settlement drift from your backtesting metrics.
+
+Unlike the Day-Ahead Market, which happens once, or the Continuous Intraday Market, which behaves like a normal stock exchange order book, Intraday Auctions are discrete clearing events that interrupt the continuous market to re-balance the entire European grid.
+When an IDA triggers, the continuous order books are frozen. All submitted bids (demand) and asks (supply) are aggregated into a single intersection point. This intersection establishes a uniform clearing price for that specific delivery period across all participating European borders.
+
+Why this matters for your agents:
+If your Weather & Forecast Analyst detects a massive sudden drop in wind forecasts at 14:00, your Trader agent can strategically submit limit orders into the upcoming 15:00 IDA auction to secure power before the continuous market reacts to the shortage. IDAs provide massive liquidity injections and represent the best opportunities to close large residual positions without suffering severe market impact slippage.

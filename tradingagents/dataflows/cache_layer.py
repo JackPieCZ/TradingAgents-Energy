@@ -5,8 +5,12 @@ import logging
 from typing import Optional, Callable
 import pandas as pd
 
-from .config import get_config
-from .energy_utils import get_cache_path as build_cache_path
+try:
+    from .config import get_config
+    from .energy_utils import get_cache_path as build_cache_path
+except ImportError:
+    from config import get_config
+    from energy_utils import get_cache_path as build_cache_path
 
 logger = logging.getLogger(__name__)
 

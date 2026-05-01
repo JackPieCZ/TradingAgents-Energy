@@ -1641,11 +1641,9 @@ class TestEnergyUtils:
     
     def test_dst_spring(self):
         # March last Sunday: hour 2 should be handled
-        pass
     
     def test_dst_autumn(self):
         # October last Sunday: double hour 2 should be averaged
-        pass
     
     def test_bidding_zone_lookup(self):
         assert get_entsoe_area_code("DE-LU") == "10Y1001A1001A82H"

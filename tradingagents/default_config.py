@@ -22,9 +22,9 @@ DEFAULT_CONFIG = {
     # being forwarded to Gemini, producing malformed request URLs).
     "backend_url": None,
     # Provider-specific thinking configuration
-    "google_thinking_level": None,      # "high", "minimal", etc.
-    "openai_reasoning_effort": None,    # "medium", "high", "low"
-    "anthropic_effort": None,           # "high", "medium", "low"
+    "google_thinking_level": None, # "high", "minimal", etc.
+    "openai_reasoning_effort": None, # "medium", "high", "low"
+    "anthropic_effort": None, # "high", "medium", "low"
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,
@@ -38,13 +38,42 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-        "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        # Stock data (legacy)
+        "core_stock_apis": "yfinance",
+        "technical_indicators": "yfinance",
+        "fundamental_data": "yfinance",
+        "news_data": "yfinance",
+        # Energy data (new)
+        "price_data": "entsoe",
+        "system_data": "entsoe",
+        "weather_data": "openmeteo",
+        "market_fundamentals": "smard",
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
-        # Example: "get_stock_data": "alpha_vantage",  # Override category default
+        # Energy-specific overrides
+        "get_day_ahead_prices": "entsoe,ote",
+        "get_intraday_prices": "entsoe,ote",
+        "get_intraday_auction_prices": "entsoe",
+        "get_residual_load": "entsoe,smard",
+        "get_generation_forecast": "entsoe",
+        "get_actual_generation": "smard,entsoe",
+        "get_load_forecast": "entsoe",
+        "get_cross_border_flows": "entsoe",
+        "get_outages": "entsoe",
+        "get_balancing_data": "entsoe",
+        "get_wind_forecast": "openmeteo",
+        "get_solar_forecast": "openmeteo",
+        "get_weather_forecast": "openmeteo",
+        "get_forecast_updates": "entsoe",
     },
+    # Energy market specific configuration
+    "market_area": "CZ",  # Primary bidding zone ("DE-LU" or "CZ")
+    "delivery_resolution": "15min",  # "60min" or "15min"
+    "trading_horizon": "intraday",  # "day_ahead" | "intraday" | "both"
+    "weather_provider": "open_meteo",
+    # OTE-specific config
+    "ote_soap_url": "http://www.ote-cr.cz/services/PublicDataService",
+    # SMARD config
+    "smard_base_url": "https://www.smard.de/app/chart_data",
 }
