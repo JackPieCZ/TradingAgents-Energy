@@ -44,18 +44,16 @@ class RiskDebateState(TypedDict):
 
 
 class AgentState(MessagesState):
-    company_of_interest: Annotated[str, "Company that we are interested in trading"]
+    company_of_interest: Annotated[str, "Ticker or delivery_period identifier"]
     trade_date: Annotated[str, "What date we are trading at"]
 
     sender: Annotated[str, "Agent that sent this message"]
 
     # research step
-    market_report: Annotated[str, "Report from the Market Analyst"]
-    sentiment_report: Annotated[str, "Report from the Social Media Analyst"]
-    news_report: Annotated[
-        str, "Report from the News Researcher of current world affairs"
-    ]
-    fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
+    market_report: Annotated[str, "Report from Price & Technical Analyst"]
+    sentiment_report: Annotated[str, "Report from System State Analyst"]
+    news_report: Annotated[str, "Report from Energy News & Regulatory Analyst"]
+    fundamentals_report: Annotated[str, "Report from Weather & Forecast Analyst"]
 
     # researcher team discussion step
     investment_debate_state: Annotated[
@@ -70,11 +68,11 @@ class AgentState(MessagesState):
         RiskDebateState, "Current state of the debate on evaluating risk"
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
-    past_context: Annotated[str, "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)"]
+    past_context: Annotated[str, "Memory log context injected at run start"]
 
     # --- NEW: Power-specific context ---
-    delivery_period: NotRequired[Annotated[str, "Delivery period start (ISO datetime), e.g. 2024-06-15T14:00"]]
-    market_area: NotRequired[Annotated[str, "Bidding zone (e.g. DE-LU, CZ)"]]
-    day_ahead_position: NotRequired[Annotated[str, "Current day-ahead position for this delivery period"]]
-    residual_position: NotRequired[Annotated[str, "Current residual (unhedged) position"]]
-    regime_indicator: NotRequired[Annotated[str, "Current market regime classification"]]
+    delivery_period: Annotated[str, "Delivery period start (ISO datetime), e.g. 2024-06-15T14:00"]
+    market_area: Annotated[str, "Bidding zone (e.g. CZ (default), DE-LU)"]
+    day_ahead_position: Annotated[str, "Current day-ahead position for this delivery period"]
+    residual_position: Annotated[str, "Current residual (unhedged) position"]
+    regime_indicator: Annotated[str, "Current market regime classification"]
