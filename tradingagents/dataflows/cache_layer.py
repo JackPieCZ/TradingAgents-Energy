@@ -14,6 +14,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 def get_cache_dir() -> str:
     """Get the cache directory from config, creating it if needed."""
     config = get_config()
@@ -21,10 +22,12 @@ def get_cache_dir() -> str:
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
 
+
 def cache_key_path(source: str, query_type: str, market_area: str, date_str: str) -> str:
     """Build the full file path for a cache entry."""
     cache_dir = get_cache_dir()
     return build_cache_path(source, query_type, market_area, date_str, cache_dir)
+
 
 def load_cached(source: str, query_type: str, market_area: str, date_str: str) -> Optional[pd.DataFrame]:
     """Load a cached DataFrame if it exists, otherwise return None."""
@@ -37,6 +40,7 @@ def load_cached(source: str, query_type: str, market_area: str, date_str: str) -
             return None
     return None
 
+
 def save_to_cache(df: pd.DataFrame, source: str, query_type: str, market_area: str, date_str: str) -> None:
     """Save a DataFrame to the cache."""
     path = cache_key_path(source, query_type, market_area, date_str)
@@ -45,16 +49,18 @@ def save_to_cache(df: pd.DataFrame, source: str, query_type: str, market_area: s
     except Exception as e:
         logger.warning(f"Failed to write cache at {path}: {e}")
 
+
 def cached_fetch(source: str, query_type: str, market_area: str, date_str: str,
                  fetch_fn: Callable[[], pd.DataFrame]) -> pd.DataFrame:
     """Generic cache-or-fetch wrapper."""
     df = load_cached(source, query_type, market_area, date_str)
     if df is not None:
         return df
-    
+
     df = fetch_fn()
     save_to_cache(df, source, query_type, market_area, date_str)
     return df
+
 
 def clear_cache(source: Optional[str] = None, market_area: Optional[str] = None) -> int:
     """Clear cached data. Returns number of files deleted."""
@@ -64,7 +70,7 @@ def clear_cache(source: Optional[str] = None, market_area: Optional[str] = None)
         for file in files:
             if not file.endswith('.parquet'):
                 continue
-            
+
             # path is roughly cache_dir/source/market_area/query_type/date.parquet
             rel_path = os.path.relpath(os.path.join(root, file), cache_dir)
             parts = rel_path.split(os.sep)
@@ -74,7 +80,30 @@ def clear_cache(source: Optional[str] = None, market_area: Optional[str] = None)
                     continue
                 if market_area and file_market != market_area:
                     continue
-                
+
                 os.remove(os.path.join(root, file))
                 count += 1
     return count
+
+
+def _load_or_fetch(source: str, query_type: str, market_area: str, date_str: str, fetch_fn):
+    """Cache wrapper for SMARD data."""
+    try:
+        cached_df = load_cached(source, query_type, market_area, date_str)
+        if cached_df is not None:
+            logger.debug(f"Cache hit: {source}/{query_type}/{market_area}/{date_str}")
+            return cached_df
+    except Exception as e:
+        logger.warning(f"Cache read error: {e}")
+
+    try:
+        df = fetch_fn()
+        if df is not None and not df.empty:
+            try:
+                save_to_cache(df, source, query_type, market_area, date_str)
+            except Exception as e:
+                logger.warning(f"Cache write error: {e}")
+        return df
+    except Exception as e:
+        logger.error(f"Fetch error for {source}/{query_type}/{market_area}/{date_str}: {e}")
+        return pd.DataFrame()

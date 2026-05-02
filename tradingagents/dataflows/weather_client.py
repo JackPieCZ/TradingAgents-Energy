@@ -149,29 +149,19 @@ def _get_session():
     return _client
 
 
-def _load_or_fetch(source: str, query_type: str, market_area: str, date_str: str, fetch_fn):
-    """Cache wrapper for weather data."""
-    try:
-        cached_df = cache_layer.load_cached(source, query_type, market_area, date_str)
-        if cached_df is not None:
-            logger.debug(f"Cache hit: {source}/{query_type}/{market_area}/{date_str}")
-            return cached_df
-    except Exception as e:
-        logger.warning(f"Cache read error: {e}")
-
-    try:
-        df = fetch_fn()
-        if df is not None and not df.empty:
-            try:
-                cache_layer.save_to_cache(df, source, query_type, market_area, date_str)
-            except Exception as e:
-                logger.warning(f"Cache write error: {e}")
-        return df
-    except Exception as e:
-        logger.error(f"Fetch error for {source}/{query_type}/{market_area}/{date_str}: {e}")
-        return pd.DataFrame()
-
 # --- DYNAMIC EXTRACTION HELPERS ---
+
+def _circular_mean(degrees: pd.Series) -> float:
+    """Calculate the circular mean of an array of angles in degrees."""
+    valid_deg = degrees.dropna()
+    if valid_deg.empty:
+        return np.nan
+    rads = np.deg2rad(valid_deg)
+    mean_sin = np.mean(np.sin(rads))
+    mean_cos = np.mean(np.cos(rads))
+    mean_rad = np.arctan2(mean_sin, mean_cos)
+    mean_deg = np.rad2deg(mean_rad)
+    return (mean_deg + 360) % 360
 
 
 def _extract_hourly_data(hourly, params_list: List[str]) -> dict:
@@ -244,14 +234,14 @@ def get_wind_forecast(
 
         df = pd.DataFrame(all_data)
 
-        # Aggregate safely across all regions
+        # Aggregate safely across all regions using circular mean for directions
         avg_df = df.groupby("Hour").agg({
             "Wind 10m m/s": "mean",
             "Wind 80m m/s": "mean",
             "Wind 120m m/s": "mean",
-            "Wind Dir 10m": "mean",
-            "Wind Dir 80m": "mean",
-            "Wind Dir 120m": "mean",
+            "Wind Dir 10m": _circular_mean,
+            "Wind Dir 80m": _circular_mean,
+            "Wind Dir 120m": _circular_mean,
             "Wind Gusts 10m m/s": "mean",
         }).reset_index()
 
@@ -259,7 +249,7 @@ def get_wind_forecast(
 
         return avg_df
 
-    df = _load_or_fetch("openmeteo", "wind_forecast", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("openmeteo", "wind_forecast", market_area, delivery_date, fetch)
 
     if df is None or df.empty:
         logger.warning(f"No wind forecast data available for {market_area} on {delivery_date}")
@@ -344,7 +334,7 @@ def get_solar_forecast(
 
         return avg_df
 
-    df = _load_or_fetch("openmeteo", "solar_forecast", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("openmeteo", "solar_forecast", market_area, delivery_date, fetch)
 
     if df is None or df.empty:
         logger.warning(f"No solar forecast data available for {market_area} on {delivery_date}")
@@ -444,7 +434,7 @@ def get_weather_forecast(
 
         return avg_df
 
-    df = _load_or_fetch("openmeteo", "weather_forecast", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("openmeteo", "weather_forecast", market_area, delivery_date, fetch)
 
     if df is None or df.empty:
         logger.warning(f"No weather forecast data available for {market_area} on {delivery_date}")
@@ -534,11 +524,11 @@ def get_historical_forecast(
 
         df = pd.DataFrame(all_data)
 
-        # Aggregate safely across all regions
+        # Aggregate safely across all regions using circular mean for direction
         avg_df = df.groupby("Hour").agg({
             "Wind 10m m/s": "mean",
             "Wind 80m m/s": "mean",
-            "Wind Dir 80m": "mean",
+            "Wind Dir 80m": _circular_mean,
             "Wind Gusts 10m m/s": "mean",
             "Radiation (Flat) W/m2": "mean",
             "Radiation (Tilted) W/m2": "mean",
@@ -567,7 +557,7 @@ def get_historical_forecast(
         return avg_df
 
     query_key = f"{delivery_date}_{forecast_issue_date}"
-    df = _load_or_fetch("openmeteo", f"historical_forecast_{query_key}", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("openmeteo", f"historical_forecast_{query_key}", market_area, delivery_date, fetch)
 
     if df is None or df.empty:
         logger.warning(

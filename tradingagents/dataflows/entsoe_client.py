@@ -54,11 +54,6 @@ except ImportError:
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s',
-    datefmt='%H:%M:%S'
-)
 
 
 class Pandas2EntsoeWrapper:
@@ -137,27 +132,13 @@ def _get_client() -> EntsoePandasClient:
     return _client
 
 
-def _load_or_fetch(source: str, query_type: str, market_area: str, date_str: str, fetch_fn):
-    """Generic cache wrapper: check cache first, call fetch_fn on miss, save result."""
-    try:
-        cached_df = cache_layer.load_cached(source, query_type, market_area, date_str)
-        if cached_df is not None:
-            logger.debug(f"Cache hit: {source}/{query_type}/{market_area}/{date_str}")
-            return cached_df
-    except Exception as e:
-        logger.warning(f"Cache read error: {e}")
-
-    try:
-        df = fetch_fn()
-        if df is not None and not df.empty:
-            try:
-                cache_layer.save_to_cache(df, source, query_type, market_area, date_str)
-            except Exception as e:
-                logger.warning(f"Cache write error: {e}")
-        return df
-    except Exception as e:
-        logger.error(f"Fetch error for {source}/{query_type}/{market_area}/{date_str}: {e}")
-        return pd.DataFrame()
+def _drop_zero_wind_for_cz(df: pd.DataFrame, market_area: str) -> pd.DataFrame:
+    """Drops Wind-related columns if they are entirely zero for the CZ market."""
+    if df is not None and not df.empty and market_area.upper() == 'CZ':
+        cols_to_drop = [col for col in df.columns if 'Wind' in col and (df[col] == 0).all()]
+        if cols_to_drop:
+            df = df.drop(columns=cols_to_drop)
+    return df
 
 
 def _format_index(df: pd.DataFrame, resample_hourly: bool = True) -> pd.DataFrame:
@@ -222,7 +203,7 @@ def query_day_ahead_prices(
             logger.warning(f"No day-ahead prices for {market_area} on {delivery_date}")
             return pd.DataFrame(columns=["Price EUR/MWh"])
 
-    df = _load_or_fetch("entsoe", "day_ahead_prices", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "day_ahead_prices", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No day-ahead prices available for {market_area} on {delivery_date}")
         return f"# No day-ahead prices available for {market_area} on {delivery_date}"
@@ -238,6 +219,8 @@ def query_intraday_prices(
     auction_sequence: Annotated[Optional[int], "Intraday auction number: 1, 2, or 3. None for all."] = None,
 ) -> str:
     """Fetch intraday auction prices (XBID/CIDAR) for a given date and zone."""
+    return "Intraday prices are currently unavailable due to ENTSO-E API changes. This will be re-enabled in Phase 2 after we implement the new API endpoints and data parsing logic."
+
     def fetch():
         client = _get_client()
         area_code = get_entsoe_area_code(market_area)
@@ -273,7 +256,7 @@ def query_intraday_prices(
         df.index.name = "Delivery Hour (CET)"
         return handle_dst_transition(df)
 
-    df = _load_or_fetch("entsoe", "intraday_prices", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "intraday_prices", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No intraday prices available for {market_area} on {delivery_date}")
         return f"# No intraday prices available for {market_area} on {delivery_date}"
@@ -287,7 +270,7 @@ def query_intraday_prices(
 # GENERATION FORECASTS (wind, solar)
 # ─────────────────────────────────────────────
 
-def query_wind_solar_forecast(
+def query_solar_forecast(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
     market_area: Annotated[str, "Bidding zone, e.g. 'DE-LU' or 'CZ'"],
 ) -> str:
@@ -312,23 +295,26 @@ def query_wind_solar_forecast(
 
             df["Wind Total MW"] = wind_on + wind_off
             df["Solar MW"] = solar
-            df["Total Renewable MW"] = df["Wind Total MW"] + df["Solar MW"]
+            # df["Total Renewable MW"] = df["Wind Total MW"] + df["Solar MW"]
 
             # Keep only the aggregated columns to save LLM tokens as requested by Phase 1
-            df = df[["Wind Total MW", "Solar MW", "Total Renewable MW"]]
+            df = df[["Wind Total MW", "Solar MW"]]
             df.index.name = "Hour (CET)"
             return handle_dst_transition(df)
         except NoMatchingDataError:
             logger.warning(f"No wind/solar forecast found for {market_area} on {delivery_date}")
             return pd.DataFrame()
 
-    df = _load_or_fetch("entsoe", "wind_solar_forecast", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "wind_solar_forecast", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No wind/solar forecast available for {market_area} on {delivery_date}")
         return f"# No wind/solar forecast available for {market_area} on {delivery_date}"
 
+    # Drop wind columns if they are fully zero for CZ
+    df = _drop_zero_wind_for_cz(df, market_area)
+
     df = _format_index(df.copy())
-    header = f"# Wind & Solar Day-Ahead Forecast for {market_area} on {delivery_date}\n# Source: ENTSO-E (TSO forecasts)\n# Unit: MW\n\n"
+    header = f"# Solar Day-Ahead Forecast for {market_area} on {delivery_date}\n# Source: ENTSO-E (TSO forecasts)\n# Unit: MW\n\n"
     return header + df.to_csv()
 
 
@@ -360,10 +346,13 @@ def query_actual_generation(
             logger.warning(f"No actual generation found for {market_area} on {delivery_date}")
             return pd.DataFrame()
 
-    df = _load_or_fetch("entsoe", "actual_generation", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "actual_generation", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No generation data available for {market_area} on {delivery_date}")
         return f"# No generation data available for {market_area} on {delivery_date}"
+
+    # Safe to call here too; actual wind won't be zero, but protects against future flat days
+    df = _drop_zero_wind_for_cz(df, market_area)
 
     df = _format_index(df.copy())
     header = f"# Actual Generation by Type for {market_area} on {delivery_date}\n# Source: ENTSO-E\n# Unit: MW\n\n"
@@ -441,13 +430,16 @@ def query_generation_forecast_updates(
 
         return handle_dst_transition(result)
 
-    df = _load_or_fetch("entsoe", "generation_forecast_updates", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "generation_forecast_updates", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No forecast updates available for {market_area} on {delivery_date}")
         return f"# No forecast updates available for {market_area} on {delivery_date}"
 
-    # Determine if it was a fallback based on the cached/returned df columns
+    # Determine if it was a fallback based on the cached/returned df columns BEFORE cleaning wind
     is_fallback_df = "Wind Delta" not in df.columns
+
+    # Drop wind columns if they are fully zero for CZ
+    df = _drop_zero_wind_for_cz(df, market_area)
 
     df = _format_index(df.copy())
     header = f"# Forecast Updates for {market_area} on {delivery_date}\n# Source: ENTSO-E\n"
@@ -488,7 +480,7 @@ def query_load_forecast(
             logger.warning(f"No load forecast found for {market_area} on {delivery_date}")
             return pd.DataFrame(columns=["Load Forecast MW"])
 
-    df = _load_or_fetch("entsoe", "load_forecast", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "load_forecast", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No load forecast available for {market_area} on {delivery_date}")
         return f"# No load forecast available for {market_area} on {delivery_date}"
@@ -522,7 +514,7 @@ def query_actual_load(
             logger.warning(f"No actual load data found for {market_area} on {delivery_date}")
             return pd.DataFrame(columns=["Actual Load MW"])
 
-    df = _load_or_fetch("entsoe", "actual_load", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "actual_load", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No actual load data available for {market_area} on {delivery_date}")
         return f"# No actual load data available for {market_area} on {delivery_date}"
@@ -611,7 +603,7 @@ def query_crossborder_flows(
 
         return handle_dst_transition(result_df)
 
-    df = _load_or_fetch("entsoe", "crossborder_flows", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "crossborder_flows", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No cross-border flow data available for {market_area} on {delivery_date}")
         return f"# No cross-border flow data for {market_area} on {delivery_date}"
@@ -644,47 +636,101 @@ def query_outages(
             logger.warning(f"No outage data found for {market_area} on {delivery_date}")
             return pd.DataFrame()
 
-    df = _load_or_fetch("entsoe", "outages", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "outages", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No outage data available for {market_area} on {delivery_date}")
         return f"# No outage data for {market_area} on {delivery_date}"
 
-    cols_to_keep = ['plant_type', 'production_resource_name', 'nominal_capacity', 'available_capacity', 'start', 'end']
+    # Move the index (created_doc_time) into a regular column to track when the market was notified
+    if df.index.name == 'created_doc_time' or isinstance(df.index, pd.DatetimeIndex):
+        df = df.reset_index(names=['published_time'])
+
+    # Include the high-value columns for the Energy News & System State Analysts
+    cols_to_keep = [
+        'published_time', 'plant_type', 'production_resource_name',
+        'businesstype', 'docstatus',
+        'nominal_power', 'avail_qty', 'start', 'end'
+    ]
     avail_cols = [c for c in cols_to_keep if c in df.columns]
     df_clean = df[avail_cols].copy()
 
-    if 'production_resource_name' in df_clean.columns and 'start' in df_clean.columns and 'end' in df_clean.columns:
-        df_clean = df_clean.drop_duplicates(subset=['production_resource_name', 'start', 'end'])
+    # Filter out cancelled outages - false signals destroy intraday strategies
+    if 'docstatus' in df_clean.columns:
+        df_clean = df_clean[df_clean['docstatus'] != 'Cancelled']
+        df_clean = df_clean.drop(columns=['docstatus'])
+
+    # Deduplicate using the UNIT name (psr_name) rather than the whole plant name
+    dedup_subset = [c for c in ['production_resource_psr_name', 'start', 'end'] if c in df_clean.columns]
+    if len(dedup_subset) == 3:
+        # Sort by published_time first so we keep the newest revision if there are duplicates
+        if 'published_time' in df_clean.columns:
+            df_clean = df_clean.sort_values('published_time', ascending=False)
+        df_clean = df_clean.drop_duplicates(subset=dedup_subset)
 
     # Safely convert returned localized timestamps to CET string formats
-    if 'start' in df_clean.columns:
-        df_clean['start'] = pd.to_datetime(df_clean['start'], utc=True).dt.tz_convert(
-            'Europe/Berlin').dt.strftime('%Y-%m-%d %H:%M')
-    if 'end' in df_clean.columns:
-        df_clean['end'] = pd.to_datetime(df_clean['end'], utc=True).dt.tz_convert(
-            'Europe/Berlin').dt.strftime('%Y-%m-%d %H:%M')
+    for time_col in ['published_time', 'start', 'end']:
+        if time_col in df_clean.columns:
+            df_clean[time_col] = pd.to_datetime(df_clean[time_col], utc=True).dt.tz_convert(
+                'Europe/Berlin').dt.strftime('%Y-%m-%d %H:%M')
 
-    summary = f"# Generation Outages for {market_area} on {delivery_date}\n# Source: ENTSO-E (REMIT UMMs)\n# Unit: MW unavailable\n\n"
+    # Calculate the unavailable MW
+    if "avail_qty" in df_clean.columns and "nominal_power" in df_clean.columns:
+        # CRITICAL FIX: Force string fields into numeric types before subtraction
+        df_clean["nominal_power"] = pd.to_numeric(df_clean["nominal_power"], errors="coerce")
+        df_clean["avail_qty"] = pd.to_numeric(df_clean["avail_qty"], errors="coerce")
 
-    # Calculate the unavailable MW if capacity data is present
-    if "available_capacity" in df_clean.columns and "nominal_capacity" in df_clean.columns:
-        df_clean["unavailable_MW"] = df_clean["nominal_capacity"].fillna(0) - df_clean["available_capacity"].fillna(0)
-        total_unavail = df_clean["unavailable_MW"].sum()
-        summary += f"Total unavailable capacity: {total_unavail:.0f} MW\n\n"
+        df_clean["unavailable_MW"] = df_clean["nominal_power"].fillna(0) - df_clean["avail_qty"].fillna(0)
+        df_clean = df_clean[df_clean["unavailable_MW"] > 0]
 
-    # Sort by the start time to get the most recent outages (newest first)
-    if "start" in df_clean.columns:
+        # Rename the columns for a much cleaner output table
+        rename_dict = {
+            "nominal_power": "nominal_capacity",
+            "avail_qty": "available_capacity",
+            "businesstype": "outage_type",
+            "production_resource_name": "plant_name",
+        }
+        df_clean = df_clean.rename(columns=rename_dict)
+
+    # --- FORMAT OUTPUT SPECIFICALLY FOR LLM AGENT CONSUMPTION ---
+
+    summary = f"# Generation Outages (REMIT UMMs) for {market_area} on {delivery_date}\n\n"
+
+    # 1. System State Analyst Pre-computations (Saves LLM tokens and math errors)
+    if "unavailable_MW" in df_clean.columns and "outage_type" in df_clean.columns:
+        total_planned = df_clean[df_clean['outage_type'] == 'Planned maintenance']['unavailable_MW'].sum()
+        total_unplanned = df_clean[df_clean['outage_type'] == 'Unplanned outage']['unavailable_MW'].sum()
+
+        summary += f"## System State Summary\n"
+        summary += f"* Total Unavailable Capacity: {total_planned + total_unplanned:.0f} MW\n"
+        summary += f"  - Planned Maintenance (Priced into DA): {total_planned:.0f} MW\n"
+        summary += f"  - Unplanned Outages (Intraday Shocks): {total_unplanned:.0f} MW\n\n"
+
+        if "plant_type" in df_clean.columns:
+            plant_summary = df_clean.groupby('plant_type')['unavailable_MW'].sum().sort_values(ascending=False)
+            summary += "## Offline Capacity by Plant Type\n"
+            for plant, mw in plant_summary.items():
+                summary += f"* {plant}: {mw:.0f} MW\n"
+            summary += "\n"
+
+    # 2. Energy News Analyst Feed (Sorted by publication time to highlight new information)
+    if "published_time" in df_clean.columns:
+        df_clean = df_clean.sort_values(by="published_time", ascending=False)
+    elif "start" in df_clean.columns:
         df_clean = df_clean.sort_values(by="start", ascending=False)
 
-    # df_clean = df_clean.head(30)
+    # Push bulky EIC codes to the far right so the LLM reads the critical text fields first
+    if 'eic_code' in df_clean.columns:
+        cols = [c for c in df_clean.columns if c != 'eic_code'] + ['eic_code']
+        df_clean = df_clean[cols]
 
+    summary += "## Detailed REMIT Messages (Sorted by Newest Publication First)\n"
     summary += df_clean.to_string(index=False)
+
     return summary
-
-
 # ─────────────────────────────────────────────
 # IMBALANCE / BALANCING
 # ─────────────────────────────────────────────
+
 
 def query_imbalance_prices(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
@@ -737,7 +783,7 @@ def query_imbalance_prices(
         return handle_dst_transition(df)
 
     # Note: Changed cache key to 'imbalance_data' since it now holds both price and volume
-    df = _load_or_fetch("entsoe", "imbalance_data", market_area, delivery_date, fetch)
+    df = cache_layer._load_or_fetch("entsoe", "imbalance_data", market_area, delivery_date, fetch)
     if df is None or df.empty:
         logger.warning(f"No imbalance data available for {market_area} on {delivery_date}")
         return f"# No imbalance data for {market_area} on {delivery_date}"
@@ -751,12 +797,12 @@ def query_imbalance_prices(
                 df[col] = (df[col] / exchange_rate).round(3)
 
     df = _format_index(df.copy())
-    
+
     header = f"# Imbalance Prices and Volumes for {market_area} on {delivery_date}\n# Source: ENTSO-E\n# Unit: EUR/MWh (Prices), MW (Volumes)\n"
     if exchange_rate is not None:
         header += f"# Note: Financial values converted from CZK to EUR at official rate of {exchange_rate} CZK/EUR\n"
     header += "\n"
-    
+
     return header + df.to_csv()
 
 
@@ -767,21 +813,31 @@ def query_imbalance_prices(
 def query_residual_load(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
     market_area: Annotated[str, "Bidding zone, e.g. 'DE-LU' or 'CZ'"],
+    use_actuals: Annotated[bool, "Use actual load instead of day-ahead forecast for live trading"] = True,
 ) -> str:
-    """Fetch residual load (load - wind - solar) forecast."""
+    """Fetch residual load forecast or actuals."""
     def fetch():
         client = _get_client()
         area_code = get_entsoe_area_code(market_area)
         start, end = delivery_date_to_entsoe_period(delivery_date)
 
+        # 1. Fetch either actual load or forecasted load based on the toggle
         try:
-            load = client.query_load_forecast(area_code, start=start, end=end)
+            if use_actuals:
+                load = client.query_load(area_code, start=start, end=end)
+                load_col_name = "Actual Load MW"
+            else:
+                load = client.query_load_forecast(area_code, start=start, end=end)
+                load_col_name = "Load Forecast MW"
+
             if isinstance(load, pd.DataFrame):
                 load = load.iloc[:, 0]
         except (NoMatchingDataError, Exception) as e:
             logger.warning(f"Residual Load - Failed to fetch load: {e}")
             load = pd.Series(dtype=float)
+            load_col_name = "Actual Load MW" if use_actuals else "Load Forecast MW"
 
+        # 2. Fetch wind and solar forecasts (these remain forecasts as they dictate expected renewable generation)
         try:
             wind_solar = client.query_wind_and_solar_forecast(area_code, start=start, end=end)
         except (NoMatchingDataError, Exception) as e:
@@ -789,11 +845,11 @@ def query_residual_load(
             wind_solar = pd.DataFrame()
 
         if load.empty:
-            logger.warning(f"No load forecast data for {market_area} on {delivery_date}, cannot compute residual load")
+            logger.warning(f"No load data for {market_area} on {delivery_date}, cannot compute residual load")
             return pd.DataFrame()
 
         result = pd.DataFrame(index=load.index)
-        result["Load Forecast MW"] = load
+        result[load_col_name] = load
 
         if not wind_solar.empty:
             wind_total = pd.Series(0, index=wind_solar.index)
@@ -805,25 +861,35 @@ def query_residual_load(
             solar = wind_solar["Solar"].fillna(
                 0) if "Solar" in wind_solar.columns else pd.Series(0, index=wind_solar.index)
 
+            # Forward fill renewables to match load resolution if necessary
             wind_total = wind_total.reindex(load.index, method='ffill')
             solar = solar.reindex(load.index, method='ffill')
 
             result["Wind MW"] = wind_total
             result["Solar MW"] = solar
-            result["Residual Load MW"] = result["Load Forecast MW"] - wind_total - solar
+            # result["Residual Load MW"] = result[load_col_name] - wind_total - solar
         else:
-            result["Residual Load MW"] = result["Load Forecast MW"]
+            result["Residual Load MW"] = result[load_col_name]
 
         result.index.name = "Hour (CET)"
         return handle_dst_transition(result)
 
-    df = _load_or_fetch("entsoe", "residual_load", market_area, delivery_date, fetch)
+    # Use a separate cache key to prevent overwriting forecast data with actuals
+    cache_key = "residual_load_actual" if use_actuals else "residual_load"
+    df = cache_layer._load_or_fetch("entsoe", cache_key, market_area, delivery_date, fetch)
+
     if df is None or df.empty:
         logger.warning(f"No residual load data available for {market_area} on {delivery_date}")
         return f"# No residual load data for {market_area} on {delivery_date}"
 
+    # Drop wind columns if they are fully zero for CZ
+    df = _drop_zero_wind_for_cz(df, market_area)
+
     df = _format_index(df.copy())
-    header = f"# Residual Load Forecast for {market_area} on {delivery_date}\n# Source: ENTSO-E (calculated: Load - Wind - Solar)\n# Unit: MW\n\n"
+
+    type_str = "Actual" if use_actuals else "Forecast"
+    header = f"# Residual Load {type_str} for {market_area} on {delivery_date}\n# Source: ENTSO-E\n# Unit: MW\n\n"
+
     return header + df.to_csv()
 
 
@@ -834,7 +900,7 @@ if __name__ == "__main__":
 
     load_dotenv()
 
-    date = sys.argv[1] if len(sys.argv) > 1 else "2026-04-30"
+    date = sys.argv[1] if len(sys.argv) > 1 else "2026-04-28"
     market_area = sys.argv[2] if len(sys.argv) > 2 else "CZ"
 
     print(f"Testing ENTSO-E for date: {date}, market: {market_area}")
@@ -858,7 +924,7 @@ if __name__ == "__main__":
     print(query_intraday_prices(date, market_area))
 
     print("\n=== query_wind_solar_forecast ===")
-    print(query_wind_solar_forecast(date, market_area))
+    print(query_solar_forecast(date, market_area))
 
     print("\n=== query_actual_generation ===")
     print(query_actual_generation(date, market_area))
@@ -887,340 +953,330 @@ if __name__ == "__main__":
 """
 Reference output
 === query_day_ahead_prices ===
-# Day-Ahead Prices for CZ on 2026-04-30
+# Day-Ahead Prices for CZ on 2026-04-28
 # Source: ENTSO-E Transparency Platform
 # Unit: EUR/MWh
 
 Hour,Price EUR/MWh,Price EUR/MWh StdDev,Price EUR/MWh Range
-00:00,107.708,3.127,6.91
-01:00,105.52,1.311,2.93
-02:00,103.63,1.82,3.84
-03:00,105.39,1.073,2.48
-04:00,110.015,5.205,11.53
-05:00,120.438,7.495,17.25
-06:00,132.122,11.562,25.45
-07:00,122.05,21.34,50.44
-08:00,101.178,36.495,82.75
-09:00,47.508,51.564,114.26
-10:00,0.24,1.264,3.02
-11:00,-2.498,3.212,7.07
-12:00,-13.472,6.148,14.76
-13:00,-27.553,4.265,9.61
-14:00,-21.048,4.832,11.7
-15:00,-8.075,5.601,13.14
-16:00,1.832,5.629,13.49
-17:00,39.89,45.195,94.86
-18:00,103.428,40.841,95.49
-19:00,145.36,30.808,70.61
-20:00,170.52,12.305,28.29
-21:00,131.602,28.178,64.5
-22:00,120.915,11.447,25.95
-23:00,111.598,6.292,13.9
-00:00,119.49,,0.0
+00:00,116.028,4.094,9.54
+01:00,111.445,2.348,5.46
+02:00,107.975,0.354,0.81
+03:00,108.068,0.849,1.92
+04:00,110.608,3.477,7.81
+05:00,117.18,6.141,13.68
+06:00,127.9,3.472,7.9
+07:00,126.185,11.947,26.9
+08:00,114.608,16.932,38.5
+09:00,77.895,37.53,87.23
+10:00,29.58,23.688,52.64
+11:00,-0.04,0.457,1.05
+12:00,-3.802,2.512,5.81
+13:00,-14.195,3.898,9.33
+14:00,-11.235,3.885,9.16
+15:00,8.358,8.685,21.0
+16:00,42.168,33.609,78.19
+17:00,60.69,37.035,88.04
+18:00,96.2,22.189,47.46
+19:00,123.477,14.449,33.83
+20:00,140.27,3.982,7.99
+21:00,121.49,8.395,18.08
+22:00,115.8,6.312,14.83
+23:00,106.41,3.659,8.75
+00:00,100.89,,0.0
 
 
 === query_intraday_prices ===
-[WARNING] 23:31:41 - __main__ - No intraday prices for sequence 1 in CZ on 2026-04-30
-[WARNING] 23:31:41 - __main__ - No intraday prices for sequence 2 in CZ on 2026-04-30
-[WARNING] 23:31:41 - __main__ - No intraday prices for sequence 3 in CZ on 2026-04-30
-[WARNING] 23:31:41 - __main__ - No intraday prices available for CZ on 2026-04-30
-[WARNING] 23:31:41 - __main__ - No intraday prices available for CZ on 2026-04-30
-# No intraday prices available for CZ on 2026-04-30
+Intraday prices are currently unavailable due to ENTSO-E API changes. This will be re-enabled in Phase 2 after we implement the new API endpoints and data parsing logic.
 
 === query_wind_solar_forecast ===
-# Wind & Solar Day-Ahead Forecast for CZ on 2026-04-30
+# Solar Day-Ahead Forecast for CZ on 2026-04-28
 # Source: ENTSO-E (TSO forecasts)
 # Unit: MW
 
-Hour,Wind Total MW,Solar MW,Total Renewable MW
-00:00,0.0,0.0,0.0
-01:00,0.0,0.0,0.0
-02:00,0.0,0.0,0.0
-03:00,0.0,0.0,0.0
-04:00,0.0,0.0,0.0
-05:00,0.0,23.75,23.75
-06:00,0.0,237.0,237.0
-07:00,0.0,843.5,843.5
-08:00,0.0,1713.5,1713.5
-09:00,0.0,2460.0,2460.0
-10:00,0.0,2932.0,2932.0
-11:00,0.0,3168.25,3168.25
-12:00,0.0,3236.0,3236.0
-13:00,0.0,3207.0,3207.0
-14:00,0.0,3027.25,3027.25
-15:00,0.0,2658.25,2658.25
-16:00,0.0,2110.5,2110.5
-17:00,0.0,1374.25,1374.25
-18:00,0.0,629.25,629.25
-19:00,0.0,174.25,174.25
-20:00,0.0,21.25,21.25
-21:00,0.0,0.0,0.0
-22:00,0.0,0.0,0.0
-23:00,0.0,0.0,0.0
+Hour,Solar MW
+00:00,0.0
+01:00,0.0
+02:00,0.0
+03:00,0.0
+04:00,0.0
+05:00,18.0
+06:00,176.75
+07:00,649.75
+08:00,1386.0
+09:00,2100.0
+10:00,2600.5
+11:00,2871.5
+12:00,2942.0
+13:00,2873.5
+14:00,2629.25
+15:00,2249.25
+16:00,1745.25
+17:00,1102.5
+18:00,499.25
+19:00,140.5
+20:00,14.75
+21:00,0.0
+22:00,0.0
+23:00,0.0
 
 
 === query_actual_generation ===
-# Actual Generation by Type for CZ on 2026-04-30
+# Actual Generation by Type for CZ on 2026-04-28
 # Source: ENTSO-E
 # Unit: MW
 
 Hour,Biomass,Fossil Brown coal/Lignite,Fossil Coal-derived gas,Fossil Gas,Fossil Hard coal,Fossil Oil,Hydro Pumped Storage,Hydro Pumped Storage (Consumption),Hydro Run-of-river and poundage,Hydro Water Reservoir,Nuclear,Other,Other renewable,Solar,Waste,Wind Onshore
-00:00,296.608,2169.812,0.0,145.67,80.12,3.07,0.0,0.0,83.64,17.83,3531.705,68.492,271.398,0.0,32.328,81.512
-01:00,292.298,2166.36,0.0,144.785,82.238,3.07,0.0,0.0,85.9,11.308,3535.442,68.625,271.232,0.0,32.168,71.53
-02:00,292.278,2162.442,0.0,143.99,81.2,3.06,0.0,0.0,85.42,11.218,3538.708,69.058,270.698,0.0,32.548,62.01
-03:00,293.382,2170.705,0.0,146.19,81.25,3.06,0.0,0.0,85.062,11.075,3539.1,69.195,270.435,0.0,31.762,56.495
-04:00,293.51,2198.168,0.0,157.48,82.425,3.075,0.0,0.0,86.052,10.308,3541.37,67.96,272.422,12.725,32.03,50.732
-05:00,300.315,2183.27,0.0,179.18,81.598,3.09,273.597,0.0,85.56,10.29,3539.43,66.095,275.828,64.68,32.525,49.97
-06:00,306.403,2081.633,0.0,232.385,84.938,3.138,947.315,0.0,78.375,134.68,3539.112,59.778,285.265,215.69,32.75,54.422
-07:00,307.975,2015.648,0.0,224.172,86.658,3.132,380.692,0.0,77.378,144.945,3538.998,60.048,284.8,838.055,32.475,43.758
-08:00,300.712,1788.828,0.0,185.972,85.385,3.08,25.78,0.0,77.608,51.032,3539.24,64.662,275.255,1767.857,32.293,36.707
-09:00,277.485,1325.68,0.0,158.445,70.64,3.018,12.402,59.978,80.6,61.105,3537.73,65.902,266.108,2562.312,31.518,57.432
-10:00,263.615,836.335,0.0,131.522,66.082,2.94,0.0,1023.06,79.96,60.76,3536.21,67.22,256.555,3010.217,30.855,65.482
-11:00,259.418,777.225,0.0,125.892,65.485,2.925,0.0,1113.89,78.798,51.855,3532.25,67.345,257.393,3234.472,30.762,57.062
-12:00,261.832,771.235,0.0,128.475,69.092,2.928,0.0,1107.92,77.44,47.45,3532.418,67.42,257.725,3435.152,31.578,45.805
-13:00,263.192,791.168,0.0,127.968,70.202,2.932,0.0,1099.815,77.135,47.988,3529.148,67.612,258.998,3448.217,31.565,51.232
-14:00,262.875,748.402,0.0,125.278,68.228,2.92,0.0,1090.372,82.552,6.032,3526.57,67.392,257.872,3060.553,31.442,50.71
-15:00,264.572,751.462,0.0,127.738,69.08,2.92,0.0,1034.875,82.468,11.735,3519.568,67.358,257.478,2704.062,33.385,52.465
-16:00,261.758,770.605,0.0,129.447,69.25,2.93,0.0,351.702,81.922,12.112,3520.998,67.165,259.533,2106.322,33.48,51.718
-17:00,266.835,917.848,0.0,136.962,71.718,2.962,0.0,0.0,83.155,13.008,3523.895,67.088,262.628,1395.065,33.81,58.802
-18:00,288.758,1421.16,0.0,179.767,76.68,3.058,187.045,0.0,83.695,20.06,3523.87,64.16,275.332,616.865,35.02,60.405
-19:00,297.87,1669.808,0.0,207.615,79.555,3.11,934.85,0.0,72.792,520.6,3523.087,60.918,282.878,178.04,35.528,49.59
-20:00,297.82,1740.06,0.0,225.462,87.702,3.135,971.882,0.0,71.865,650.285,3524.705,58.832,286.508,74.575,35.755,43.728
-21:00,294.895,1731.498,0.0,211.072,86.265,3.112,958.475,0.0,72.81,362.61,3522.48,60.748,281.862,4.668,35.49,43.42
-22:00,287.597,1689.338,0.0,159.675,81.285,3.042,944.61,0.0,80.97,33.65,3522.81,66.622,270.595,0.0,34.752,38.768
-23:00,284.415,1655.172,0.0,144.608,82.0,3.04,877.352,0.0,86.582,16.022,3525.188,67.712,269.7,0.0,34.555,37.38
+00:00,296.515,2584.862,0.0,355.56,80.96,3.082,262.428,0.0,89.727,40.068,3517.698,68.775,270.403,0.0,32.08,39.88
+01:00,294.222,2566.555,0.0,144.985,82.375,3.08,68.025,0.0,90.738,28.13,3519.655,68.995,269.645,0.0,31.96,37.365
+02:00,292.347,2512.515,0.0,142.728,83.29,3.07,0.0,0.0,90.088,21.968,3523.07,69.348,268.925,0.0,32.405,38.368
+03:00,291.285,2534.39,0.0,144.54,83.932,3.072,0.0,0.0,89.158,22.218,3525.83,69.345,268.645,0.0,32.492,41.445
+04:00,293.775,2546.498,0.0,155.922,83.628,3.082,0.0,0.0,87.612,27.498,3526.728,68.22,269.865,5.455,32.118,43.425
+05:00,295.025,2570.505,0.0,177.835,81.152,3.1,128.495,0.0,89.032,29.47,3525.978,66.61,274.188,50.295,32.265,43.485
+06:00,298.068,2626.68,0.0,226.568,80.582,3.14,611.352,0.0,83.025,237.445,3524.478,60.382,284.028,219.88,32.505,43.68
+07:00,298.39,2614.232,0.0,218.572,83.418,3.14,605.037,0.0,79.502,360.222,3525.635,60.94,282.805,758.025,32.458,36.54
+08:00,299.072,2515.472,0.0,199.288,82.065,3.118,407.25,0.0,78.125,40.945,3527.078,63.132,277.768,1603.478,32.347,29.16
+09:00,290.422,1883.832,0.0,162.71,79.048,3.058,108.01,15.892,84.095,16.34,3523.985,66.642,268.98,2410.81,32.08,27.735
+10:00,283.062,1298.775,0.0,137.615,68.878,3.002,0.0,596.48,85.015,13.56,3520.745,68.105,261.988,2906.415,31.232,32.705
+11:00,283.153,1226.338,0.0,132.795,68.252,2.985,0.0,1085.545,84.36,11.562,3515.44,68.545,260.81,3098.568,31.528,36.992
+12:00,280.128,1223.22,0.0,131.392,68.16,2.982,0.0,1107.23,84.695,11.035,3510.175,68.67,259.488,3191.69,31.41,40.982
+13:00,279.358,1244.192,0.0,127.972,67.545,2.98,0.0,1098.288,84.43,10.325,3514.552,68.868,259.678,3108.24,31.285,46.365
+14:00,281.79,1249.862,0.0,130.51,67.06,2.99,0.0,1088.9,81.4,10.575,3513.645,68.912,261.207,2905.44,31.662,53.19
+15:00,282.225,1262.898,0.0,133.602,69.402,2.99,0.0,860.838,81.102,12.335,3510.49,68.615,262.975,2624.365,31.66,63.537
+16:00,283.388,1232.058,0.0,137.305,72.778,3.0,0.0,446.448,77.76,55.02,3508.278,67.95,264.205,2146.248,31.482,81.12
+17:00,287.968,1442.792,0.0,149.46,75.822,3.035,0.0,0.0,84.428,12.668,3506.662,66.722,268.985,1390.403,32.078,97.77
+18:00,299.698,2197.967,0.0,189.28,77.01,3.105,111.778,0.0,83.93,18.842,3506.302,63.502,279.14,606.062,32.52,97.685
+19:00,302.795,2474.322,0.0,214.818,77.125,3.138,725.532,0.0,78.59,150.79,3508.125,60.522,283.635,170.875,33.065,107.012
+20:00,305.248,2565.552,0.0,218.788,77.84,3.14,729.972,0.0,75.66,538.418,3508.118,60.45,283.735,68.258,33.268,121.288
+21:00,301.255,2527.36,0.0,205.045,78.358,3.122,660.48,0.0,76.965,251.415,3512.07,62.388,280.135,0.0,32.94,131.75
+22:00,296.065,2482.062,0.0,161.418,79.185,3.08,432.162,0.0,81.305,121.32,3515.795,67.81,271.595,0.0,32.532,126.08
+23:00,294.08,2450.668,0.0,147.31,78.65,3.08,179.23,0.0,90.328,18.578,3517.698,68.588,270.588,0.0,32.63,111.93
 
 
 === query_generation_forecast_updates ===
-# Forecast Updates for CZ on 2026-04-30
+# Forecast Updates for CZ on 2026-04-28
 # Source: ENTSO-E
 # WARNING: Intraday forecast updates unavailable. Displaying Day-Ahead baseline only.
 # Unit: MW
 
-Hour,DA Wind Onshore,DA Wind Offshore,DA Solar
-00:00,0.0,0.0,0.0
-01:00,0.0,0.0,0.0
-02:00,0.0,0.0,0.0
-03:00,0.0,0.0,0.0
-04:00,0.0,0.0,0.0
-05:00,0.0,0.0,23.75
-06:00,0.0,0.0,237.0
-07:00,0.0,0.0,843.5
-08:00,0.0,0.0,1713.5
-09:00,0.0,0.0,2460.0
-10:00,0.0,0.0,2932.0
-11:00,0.0,0.0,3168.25
-12:00,0.0,0.0,3236.0
-13:00,0.0,0.0,3207.0
-14:00,0.0,0.0,3027.25
-15:00,0.0,0.0,2658.25
-16:00,0.0,0.0,2110.5
-17:00,0.0,0.0,1374.25
-18:00,0.0,0.0,629.25
-19:00,0.0,0.0,174.25
-20:00,0.0,0.0,21.25
-21:00,0.0,0.0,0.0
-22:00,0.0,0.0,0.0
-23:00,0.0,0.0,0.0
+Hour,DA Solar
+00:00,0.0
+01:00,0.0
+02:00,0.0
+03:00,0.0
+04:00,0.0
+05:00,18.0
+06:00,176.75
+07:00,649.75
+08:00,1386.0
+09:00,2100.0
+10:00,2600.5
+11:00,2871.5
+12:00,2942.0
+13:00,2873.5
+14:00,2629.25
+15:00,2249.25
+16:00,1745.25
+17:00,1102.5
+18:00,499.25
+19:00,140.5
+20:00,14.75
+21:00,0.0
+22:00,0.0
+23:00,0.0
 
 
 === query_load_forecast ===
-# Load Forecast for CZ on 2026-04-30
+# Load Forecast for CZ on 2026-04-28
 # Source: ENTSO-E
 # Unit: MW
 
 Hour,Load Forecast MW
-00:00,6291.25
-01:00,6307.5
-02:00,6178.75
-03:00,6205.0
-04:00,6356.0
-05:00,6836.75
-06:00,7798.75
-07:00,8367.25
-08:00,8651.25
-09:00,8889.75
-10:00,8838.5
-11:00,8818.0
-12:00,8742.5
-13:00,8616.25
-14:00,8257.5
-15:00,7960.5
-16:00,7692.25
-17:00,7495.0
-18:00,7311.5
-19:00,7384.5
-20:00,7402.0
-21:00,7099.25
-22:00,6736.0
-23:00,6367.75
+00:00,5952.0
+01:00,5940.0
+02:00,5833.0
+03:00,5799.5
+04:00,5954.75
+05:00,6482.75
+06:00,7410.25
+07:00,7993.25
+08:00,8277.25
+09:00,8526.75
+10:00,8475.25
+11:00,8506.25
+12:00,8530.0
+13:00,8386.75
+14:00,8027.25
+15:00,7757.5
+16:00,7516.25
+17:00,7340.5
+18:00,7228.0
+19:00,7339.0
+20:00,7409.5
+21:00,7077.5
+22:00,6724.0
+23:00,6350.5
 
 
 === query_actual_load ===
-# Actual Load for CZ on 2026-04-30
+# Actual Load for CZ on 2026-04-28
 # Source: ENTSO-E
 # Unit: MW
 
 Hour,Actual Load MW
-00:00,6319.822
-01:00,6347.102
-02:00,6225.412
-03:00,6196.828
-04:00,6401.208
-05:00,6914.58
-06:00,7852.472
-07:00,8370.695
-08:00,8604.962
-09:00,8803.82
-10:00,8736.77
-11:00,8648.745
-12:00,8633.335
-13:00,8461.795
-14:00,8099.535
-15:00,7854.662
-16:00,7544.185
-17:00,7237.915
-18:00,6830.465
-19:00,6845.755
-20:00,6845.655
-21:00,6567.705
-22:00,6260.808
-23:00,5934.098
+00:00,6041.692
+01:00,6000.142
+02:00,5869.858
+03:00,5863.173
+04:00,6060.003
+05:00,6614.232
+06:00,7621.21
+07:00,8108.565
+08:00,8409.92
+09:00,8675.038
+10:00,8634.968
+11:00,8510.48
+12:00,8517.128
+13:00,8467.405
+14:00,8074.382
+15:00,7957.855
+16:00,7673.938
+17:00,7461.455
+18:00,7263.845
+19:00,7430.09
+20:00,7463.558
+21:00,7050.997
+22:00,6722.61
+23:00,6392.468
 
 
 === query_crossborder_flows ===
-# Cross-Border Flows for CZ on 2026-04-30
+# Cross-Border Flows for CZ on 2026-04-28
 # Source: ENTSO-E
 # Positive = import into CZ, Negative = export
 # Unit: MW
 
 Hour,DE-LU Flow,AT Flow,PL Flow,SK Flow,Net Import MW
-00:00,0.0,398.0,0.0,2193.625,2591.625
-01:00,0.0,498.8,0.0,2258.65,2757.45
-02:00,0.0,619.7,0.0,2195.1,2814.8
-03:00,0.0,535.6,0.0,2136.675,2672.275
-04:00,0.0,403.3,0.0,2202.2,2605.5
-05:00,0.0,340.7,0.0,2123.175,2463.875
-06:00,0.0,554.0,0.0,1657.025,2211.025
-07:00,0.0,591.0,0.0,1314.6,1905.6
-08:00,0.0,821.9,0.0,851.25,1673.15
-09:00,0.0,732.9,0.0,540.0,1272.9
-10:00,0.0,377.2,0.0,1350.3,1727.5
-11:00,0.0,128.7,0.0,1456.6,1585.3
-12:00,1.5,0.0,0.0,1813.7,1815.2
-13:00,0.0,0.0,0.0,1891.975,1891.975
-14:00,0.0,0.0,0.0,1745.5,1745.5
-15:00,0.0,95.7,0.0,1754.175,1849.875
-16:00,0.0,324.2,0.0,1856.625,2180.825
-17:00,0.0,501.0,0.0,1785.375,2286.375
-18:00,0.0,358.8,33.775,1762.875,2155.45
-19:00,0.0,499.8,349.75,1616.55,2466.1
-20:00,0.0,402.8,467.125,1596.225,2466.15
-21:00,0.0,586.7,8.2,1572.325,2167.225
-22:00,0.0,820.4,0.0,1680.2,2500.6
-23:00,0.0,1161.0,0.0,1905.5,3066.5
+00:00,637.425,1253.6,0.0,1578.3,3469.325
+01:00,811.825,1445.5,0.0,1182.025,3439.35
+02:00,861.775,1545.7,0.0,1166.4,3573.875
+03:00,785.225,1483.9,0.0,1312.3,3581.425
+04:00,690.375,1243.5,0.0,1449.0,3382.875
+05:00,609.975,1223.6,0.0,1710.675,3544.25
+06:00,605.925,1407.5,0.0,1377.575,3391.0
+07:00,746.95,1589.3,0.0,420.2,2756.45
+08:00,822.825,2132.8,0.0,10.275,2965.9
+09:00,781.2,2270.0,0.0,0.0,3051.2
+10:00,464.45,1696.6,0.0,0.0,2161.05
+11:00,29.975,1240.8,0.0,58.75,1329.525
+12:00,0.0,787.7,0.0,291.1,1078.8
+13:00,0.0,551.9,0.0,491.3,1043.2
+14:00,0.0,631.2,0.0,547.425,1178.625
+15:00,1.525,872.2,0.0,578.85,1452.575
+16:00,17.9,1112.6,0.0,882.25,2012.75
+17:00,0.0,955.3,0.0,1844.15,2799.45
+18:00,0.0,1008.2,0.0,2109.05,3117.25
+19:00,0.0,878.9,0.0,2017.775,2896.675
+20:00,0.0,599.1,16.525,1836.05,2451.675
+21:00,33.575,634.8,0.0,1643.525,2311.9
+22:00,54.925,998.1,0.0,2208.55,3261.575
+23:00,59.775,999.8,0.0,2058.975,3118.55
 
 
 === query_outages ===
-# Generation Outages for CZ on 2026-04-30
-# Source: ENTSO-E (REMIT UMMs)
-# Unit: MW unavailable
+# Generation Outages (REMIT UMMs) for CZ on 2026-04-28
 
-               plant_type production_resource_name            start              end
-Fossil Brown coal/Lignite              EPC1_______ 2026-04-30 23:45 2026-05-02 00:00
-Fossil Brown coal/Lignite              EPC1_______ 2026-04-30 23:45 2026-05-05 00:00
-Fossil Brown coal/Lignite              ELED_______ 2026-04-30 19:00 2026-05-02 00:00
-Fossil Brown coal/Lignite              ELED_______ 2026-04-30 11:00 2026-04-30 19:00
-Fossil Brown coal/Lignite              ELED_______ 2026-04-30 08:15 2026-04-30 11:00
-Fossil Brown coal/Lignite              EPR2_______ 2026-04-30 08:00 2026-05-04 06:00
-Fossil Brown coal/Lignite              ETU2_______ 2026-04-30 05:30 2026-04-30 08:15
-               Fossil Gas              EPVR_______ 2026-04-30 00:00 2026-05-01 00:00
-Fossil Brown coal/Lignite              ETI2_______ 2026-04-30 00:00 2026-05-01 00:00
-Fossil Brown coal/Lignite              ELED_______ 2026-04-30 00:00 2026-04-30 08:15
-Fossil Brown coal/Lignite              ELED_______ 2026-04-30 00:00 2026-04-30 11:00
-Fossil Brown coal/Lignite              EECK_______ 2026-04-29 10:15 2026-05-03 00:00
-Fossil Brown coal/Lignite              ELED_______ 2026-04-28 00:00 2026-05-02 00:00
-Fossil Brown coal/Lignite              EPC1_______ 2026-04-27 00:00 2026-05-01 00:00
-Fossil Brown coal/Lignite              EPC1_______ 2026-04-27 00:00 2026-06-03 00:00
-Fossil Brown coal/Lignite              EPC1_______ 2026-04-27 00:00 2026-04-30 14:30
-Fossil Brown coal/Lignite              ECHV_______ 2026-04-24 23:45 2026-05-23 00:00
-Fossil Brown coal/Lignite              ECHV_______ 2026-04-18 00:00 2026-06-29 00:00
-                  Nuclear              EDUK_______ 2026-04-17 20:00 2026-07-01 20:00
-                  Nuclear              EDUK_______ 2026-04-17 18:00 2026-07-03 18:00
-     Hydro Pumped Storage              EDST_______ 2026-04-13 00:00 2026-06-15 00:00
-                  Nuclear              EDUK_______ 2026-04-10 18:00 2026-06-26 18:00
-Fossil Brown coal/Lignite              EECK_______ 2026-04-10 11:00 2026-05-03 00:00
-Fossil Brown coal/Lignite              ECHV_______ 2026-04-06 00:00 2026-06-20 00:00
-Fossil Brown coal/Lignite              ETU2_______ 2026-04-04 00:00 2026-05-14 00:00
-                  Nuclear              EDUK_______ 2026-04-03 18:00 2026-06-19 18:00
-Fossil Brown coal/Lignite              ECHV_______ 2026-04-02 00:15 2026-05-09 00:00
-     Hydro Pumped Storage              EDAL_______ 2026-01-02 00:00 2026-06-08 00:00
-         Fossil Hard coal              EDET_______ 2026-01-01 00:00 2026-12-31 23:00
-         Fossil Hard coal              EDET_______ 2026-01-01 00:00 2028-01-01 00:00
-         Fossil Hard coal              EDET_______ 2025-05-01 00:00 2029-01-01 00:00
-         Fossil Hard coal              EDET_______ 2025-03-01 00:00 2029-01-01 00:00
+## System State Summary
+* Total Unavailable Capacity: 3418 MW
+  - Planned Maintenance (Priced into DA): 3218 MW
+  - Unplanned Outages (Intraday Shocks): 200 MW
+
+## Offline Capacity by Plant Type
+* Fossil Brown coal/Lignite: 2377 MW
+* Nuclear: 530 MW
+* Hydro Pumped Storage: 325 MW
+* Fossil Gas: 186 MW
+
+## Detailed REMIT Messages (Sorted by Newest Publication First)
+  published_time                plant_type  plant_name         outage_type  nominal_capacity  available_capacity            start              end  unavailable_MW
+2026-05-01 12:14 Fossil Brown coal/Lignite EECK_______ Planned maintenance             139.0               102.0 2026-04-10 11:00 2026-05-03 00:00            37.0
+2026-04-30 14:34 Fossil Brown coal/Lignite EPC1_______ Planned maintenance             205.0                 0.0 2026-04-27 00:00 2026-04-30 14:30           205.0
+2026-04-30 14:34 Fossil Brown coal/Lignite EPC1_______ Planned maintenance             205.0                 0.0 2026-04-27 00:00 2026-04-30 14:30           205.0
+2026-04-29 10:13 Fossil Brown coal/Lignite EECK_______ Planned maintenance             135.0               100.0 2026-04-14 00:00 2026-04-29 10:15            35.0
+2026-04-29 10:05 Fossil Brown coal/Lignite ELED_______ Planned maintenance             660.0               423.0 2026-04-28 06:00 2026-04-29 18:00           237.0
+2026-04-28 17:02 Fossil Brown coal/Lignite EPC1_______    Unplanned outage             200.0                 0.0 2026-04-28 17:00 2026-04-28 20:00           200.0
+2026-04-28 08:58      Hydro Pumped Storage EDST_______ Planned maintenance             325.0                 0.0 2026-04-28 08:15 2026-04-28 10:00           325.0
+2026-04-27 07:36 Fossil Brown coal/Lignite ELED_______ Planned maintenance             660.0               432.2 2026-04-28 00:00 2026-05-02 00:00           227.8
+2026-04-21 08:16 Fossil Brown coal/Lignite ECHV_______ Planned maintenance             205.0                 0.0 2026-04-24 23:45 2026-05-23 00:00           205.0
+2026-04-17 20:06 Fossil Brown coal/Lignite ECHV_______ Planned maintenance             205.0                 0.0 2026-04-18 00:00 2026-06-29 00:00           205.0
+2026-04-16 13:26                Fossil Gas EPVR_______ Planned maintenance             186.0                 0.0 2026-04-28 00:00 2026-04-29 00:00           186.0
+2026-04-02 00:48 Fossil Brown coal/Lignite ECHV_______ Planned maintenance             205.0                 0.0 2026-04-02 00:15 2026-05-09 00:00           205.0
+2026-03-31 08:18 Fossil Brown coal/Lignite ETI2_______ Planned maintenance             105.0               100.0 2026-04-28 00:00 2026-04-29 00:00             5.0
+2026-02-06 08:57                   Nuclear EDUK_______ Planned maintenance             530.0                 0.0 2026-04-17 20:00 2026-07-01 20:00           530.0
+2025-10-08 08:32 Fossil Brown coal/Lignite ETU2_______ Planned maintenance             200.0                 0.0 2026-04-04 00:00 2026-05-14 00:00           200.0
+2025-10-08 07:25 Fossil Brown coal/Lignite ECHV_______ Planned maintenance             205.0                 0.0 2026-04-18 00:00 2026-06-29 00:00           205.0
+2025-10-08 07:25 Fossil Brown coal/Lignite ECHV_______ Planned maintenance             205.0                 0.0 2026-04-06 00:00 2026-06-20 00:00           205.0
 
 === query_imbalance_prices ===
-# Imbalance Prices and Volumes for CZ on 2026-04-30
+# Imbalance Prices and Volumes for CZ on 2026-04-28
 # Source: ENTSO-E
 # Unit: EUR/MWh (Prices), MW (Volumes)
-# Note: Financial values converted from CZK to EUR at official rate of 24.36 CZK/EUR
+# Note: Financial values converted from CZK to EUR at official rate of 24.37 CZK/EUR
 
 Hour,Imbalance Volume MW,Imbalance Volume MW StdDev,Imbalance Volume MW Range,Imbalance Price EUR/MWh,Imbalance Price EUR/MWh StdDev,Imbalance Price EUR/MWh Range
-00:00,-27.382,11.543,24.78,132.862,8.064,18.314
-01:00,-13.7,12.067,26.31,116.932,0.397,0.912
-02:00,-13.305,3.074,6.75,115.137,0.282,0.603
-03:00,-11.245,4.91,9.34,116.489,1.143,2.532
-04:00,-11.745,3.718,7.64,126.938,6.059,13.243
-05:00,-37.968,8.254,19.37,134.273,6.053,13.554
-06:00,-43.148,24.291,44.17,156.53,14.072,30.196
-07:00,-30.248,11.736,25.18,167.881,24.673,54.766
-08:00,-22.278,22.82,49.91,103.227,71.632,162.878
-09:00,10.458,23.023,50.99,21.248,42.495,84.99
-10:00,11.042,8.668,20.8,-11.341,15.98,34.716
-11:00,3.352,6.484,14.68,17.472,32.79,67.217
-12:00,-1.02,3.687,8.98,27.809,35.536,83.154
-13:00,-17.6,25.813,53.11,38.503,39.803,84.358
-14:00,1.77,3.28,6.54,2.117,31.013,54.999
-15:00,-1.053,7.131,15.74,34.309,32.505,77.383
-16:00,3.98,7.746,17.98,-4.927,15.834,38.28
-17:00,15.1,10.971,21.71,-12.32,14.675,29.05
-18:00,-20.852,14.481,33.98,110.543,14.369,31.238
-19:00,-17.51,11.175,24.02,144.648,6.519,14.498
-20:00,-27.965,10.489,23.59,170.587,2.024,4.335
-21:00,-37.365,11.956,27.22,145.225,6.433,15.09
-22:00,-3.462,6.849,16.56,96.099,64.091,130.277
-23:00,-9.615,6.658,14.51,117.484,1.713,4.16
+00:00,-3.12,9.129,17.35,55.454,64.038,111.948
+01:00,-8.123,9.317,20.93,110.203,0.673,1.616
+02:00,-14.982,6.217,13.59,106.454,0.577,1.215
+03:00,-9.848,0.959,2.31,106.89,0.556,1.162
+04:00,-7.665,2.614,5.42,110.66,0.435,1.032
+05:00,-13.945,6.666,15.86,114.19,1.803,4.035
+06:00,-0.84,3.738,8.52,89.387,59.593,119.546
+07:00,3.192,3.944,8.38,30.004,60.009,120.018
+08:00,1.898,10.969,23.13,65.656,51.717,112.634
+09:00,27.428,2.439,5.7,-1.905,3.81,7.62
+10:00,66.355,7.046,15.74,-15.926,4.49,9.518
+11:00,36.802,12.247,24.04,-19.476,9.09,19.289
+12:00,34.238,10.42,22.89,-22.497,1.425,3.325
+13:00,15.278,12.97,31.02,-6.318,33.528,67.335
+14:00,33.59,14.591,31.98,-17.373,2.852,6.045
+15:00,19.865,6.378,15.34,-23.716,21.921,48.923
+16:00,35.395,9.674,23.45,-15.982,12.979,27.64
+17:00,28.355,22.733,53.82,-1.168,2.335,4.67
+18:00,-21.178,18.905,45.48,102.859,71.787,164.255
+19:00,-18.935,6.07,13.25,124.748,1.657,3.998
+20:00,-4.373,3.065,6.78,142.068,3.668,8.081
+21:00,1.128,2.51,6.07,32.198,64.396,128.792
+22:00,-4.698,3.013,6.38,124.9,12.471,25.587
+23:00,-12.878,9.568,21.01,78.734,52.525,107.619
 
 
 === query_residual_load ===
-# Residual Load Forecast for CZ on 2026-04-30
-# Source: ENTSO-E (calculated: Load - Wind - Solar)
+# Residual Load Forecast for CZ on 2026-04-28
+# Source: ENTSO-E
 # Unit: MW
 
-Hour,Load Forecast MW,Wind MW,Solar MW,Residual Load MW
-00:00,6291.25,0.0,0.0,6291.25
-01:00,6307.5,0.0,0.0,6307.5
-02:00,6178.75,0.0,0.0,6178.75
-03:00,6205.0,0.0,0.0,6205.0
-04:00,6356.0,0.0,0.0,6356.0
-05:00,6836.75,0.0,23.75,6813.0
-06:00,7798.75,0.0,237.0,7561.75
-07:00,8367.25,0.0,843.5,7523.75
-08:00,8651.25,0.0,1713.5,6937.75
-09:00,8889.75,0.0,2460.0,6429.75
-10:00,8838.5,0.0,2932.0,5906.5
-11:00,8818.0,0.0,3168.25,5649.75
-12:00,8742.5,0.0,3236.0,5506.5
-13:00,8616.25,0.0,3207.0,5409.25
-14:00,8257.5,0.0,3027.25,5230.25
-15:00,7960.5,0.0,2658.25,5302.25
-16:00,7692.25,0.0,2110.5,5581.75
-17:00,7495.0,0.0,1374.25,6120.75
-18:00,7311.5,0.0,629.25,6682.25
-19:00,7384.5,0.0,174.25,7210.25
-20:00,7402.0,0.0,21.25,7380.75
-21:00,7099.25,0.0,0.0,7099.25
-22:00,6736.0,0.0,0.0,6736.0
-23:00,6367.75,0.0,0.0,6367.75
+Hour,Load Forecast MW,Solar MW,Residual Load MW
+00:00,5952.0,0.0,5952.0
+01:00,5940.0,0.0,5940.0
+02:00,5833.0,0.0,5833.0
+03:00,5799.5,0.0,5799.5
+04:00,5954.75,0.0,5954.75
+05:00,6482.75,18.0,6464.75
+06:00,7410.25,176.75,7233.5
+07:00,7993.25,649.75,7343.5
+08:00,8277.25,1386.0,6891.25
+09:00,8526.75,2100.0,6426.75
+10:00,8475.25,2600.5,5874.75
+11:00,8506.25,2871.5,5634.75
+12:00,8530.0,2942.0,5588.0
+13:00,8386.75,2873.5,5513.25
+14:00,8027.25,2629.25,5398.0
+15:00,7757.5,2249.25,5508.25
+16:00,7516.25,1745.25,5771.0
+17:00,7340.5,1102.5,6238.0
+18:00,7228.0,499.25,6728.75
+19:00,7339.0,140.5,7198.5
+20:00,7409.5,14.75,7394.75
+21:00,7077.5,0.0,7077.5
+22:00,6724.0,0.0,6724.0
+23:00,6350.5,0.0,6350.5
 """

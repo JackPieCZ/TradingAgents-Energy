@@ -19,12 +19,8 @@ from typing import Annotated, Optional, List, Dict
 import pandas as pd
 
 try:
-    from .config import get_config
-    from .energy_utils import format_price_table, get_cache_path
     from . import cache_layer
 except ImportError:
-    from config import get_config
-    from energy_utils import format_price_table, get_cache_path
     import cache_layer
 
 logger = logging.getLogger(__name__)
@@ -105,13 +101,7 @@ def _aggregate_to_hourly(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
-    # 1. Cast all known metric columns to numeric
-    non_metric_cols = ['Date', 'PeriodResolution', 'PeriodInterval', 'Auction', 'Hour', 'PeriodIndex', 'Version']
-    for col in df.columns:
-        if col not in non_metric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    # 2. Extract standard hour labels depending on the data format (15min vs 60min)
+    # 1. Extract standard hour labels depending on the data format (15min vs 60min)
     if 'PeriodIndex' in df.columns:
         res = df.get('PeriodResolution', pd.Series(['PT15M']*len(df))).iloc[0]
         if res == 'PT15M':
@@ -127,59 +117,8 @@ def _aggregate_to_hourly(df: pd.DataFrame) -> pd.DataFrame:
     if 'Hour' not in df.columns:
         return df
 
-    # 3. Separate columns by their mathematical aggregation logic
-    sum_cols = [c for c in df.columns if any(k in c for k in [
-                                             'Volume', 'Import', 'Export', 'Saldo', 'Sum', 'Imbalance', 'Cost']) and 'Price' not in c and 'Rate' not in c]
-    mean_cols = [c for c in df.columns if any(
-        k in c for k in ['Price', 'EurRate', 'Index']) and c not in non_metric_cols]
-    first_cols = [c for c in df.columns if c in non_metric_cols and c not in [
-        'Hour', 'PeriodIndex', 'PeriodInterval', 'Auction']]
-
-    # Group by Hour (and Auction if it exists) so multiple auctions don't get squashed
-    group_cols = ['Hour']
-    if 'Auction' in df.columns:
-        group_cols.append('Auction')
-
-    agg_dict = {}
-    for c in df.columns:
-        if c in group_cols:
-            continue
-        if c in sum_cols:
-            agg_dict[c] = ['sum']
-        elif c in mean_cols:
-            # Capture the Anchor (mean), Stability (std), and Extremes (range)
-            agg_dict[c] = [
-                'mean', 
-                'std', 
-                ('Range', lambda x: x.max() - x.min())
-            ]
-        elif c in first_cols:
-            agg_dict[c] = ['first']
-        elif c == 'Emerg':
-            agg_dict[c] = ['max']
-
-    if agg_dict:
-        # Aggregate and flatten the resulting MultiIndex columns
-        df = df.groupby(group_cols).agg(agg_dict)
-        
-        new_cols = []
-        for col, agg_func in df.columns:
-            if agg_func in ['mean', 'sum', 'first', 'max']:
-                new_cols.append(col)  # Preserve the primary anchor name
-            elif agg_func == 'std':
-                new_cols.append(f"{col}_StdDev")
-            elif agg_func == 'Range':
-                new_cols.append(f"{col}_Range")
-            else:
-                new_cols.append(f"{col}_{agg_func}")
-        
-        df.columns = new_cols
-        df = df.reset_index()
-
-    df = df.round(2)
-
-    # 4. MATCH ENTSO-E FORMAT
-    # Standardize column names to include units naturally
+    # 2. MATCH ENTSO-E FORMAT BEFORE AGGREGATION
+    # Standardize column names to include units naturally so aggregation inherits them
     rename_map = {
         'Price': 'Price EUR/MWh',
         'Volume': 'Volume MWh',
@@ -205,12 +144,73 @@ def _aggregate_to_hourly(df: pd.DataFrame) -> pd.DataFrame:
     }
     df = df.rename(columns=rename_map)
 
-    # Safely keep only useful columns using positive matching (prevents KeyError)
+    # 3. Drop useless raw columns BEFORE they trigger pointless aggregations
     cols_to_drop = ['Date', 'PeriodResolution', 'PeriodInterval', 'PeriodIndex', 'HourlyPrice', 'Version']
-    keep_cols = [c for c in df.columns if c not in cols_to_drop]
-    df = df[keep_cols]
+    df = df.drop(columns=[c for c in cols_to_drop if c in df.columns])
 
-    # Set Hour as the actual index to mimic ENTSO-E CSV format perfectly
+    # 4. Cast to numeric safely
+    non_metric_cols = ['Auction', 'Hour']
+    for col in df.columns:
+        if col not in non_metric_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # 5. Separate columns by their mathematical aggregation logic
+    sum_cols = [c for c in df.columns if any(k in c for k in [
+                                             'Volume', 'Import', 'Export', 'Saldo', 'Sum', 'Imbalance', 'Cost']) and 'Price' not in c and 'Rate' not in c]
+    mean_cols = [c for c in df.columns if any(
+        k in c for k in ['Price', 'Rate', 'Index']) and c not in non_metric_cols]
+    first_cols = [c for c in df.columns if c in non_metric_cols and c not in ['Hour', 'Auction']]
+
+    # Group by Hour (and Auction if it exists) so multiple auctions don't get squashed
+    group_cols = ['Hour']
+    if 'Auction' in df.columns:
+        group_cols.append('Auction')
+
+    agg_dict = {}
+    for c in df.columns:
+        if c in group_cols:
+            continue
+        if c in sum_cols:
+            agg_dict[c] = ['sum']
+        elif c in mean_cols:
+            # Capture the Anchor (mean), Stability (std), and Extremes (range)
+            agg_dict[c] = [
+                'mean',
+                'std',
+                ('Range', lambda x: x.max() - x.min())
+            ]
+        elif c == 'Emerg':
+            agg_dict[c] = ['max']
+        else:
+            agg_dict[c] = ['first']
+
+    if agg_dict:
+        # Aggregate and flatten the resulting MultiIndex columns
+        df = df.groupby(group_cols).agg(agg_dict)
+
+        new_cols = []
+        for col, agg_func in df.columns:
+            if agg_func in ['mean', 'sum', 'first', 'max']:
+                new_cols.append(col)  # Preserve the primary anchor name
+            elif agg_func == 'std':
+                new_cols.append(f"{col} StdDev")
+            elif agg_func == 'Range':
+                new_cols.append(f"{col} Range")
+            else:
+                new_cols.append(f"{col} {agg_func}")
+
+        df.columns = new_cols
+        df = df.reset_index()
+
+    df = df.round(2)
+
+    # 6. Clean up flat variance columns dynamically (i.e. zero standard deviation logic)
+    variance_cols = [c for c in df.columns if 'StdDev' in c or 'Range' in c]
+    for c in variance_cols:
+        if df[c].fillna(0).eq(0).all():
+            df = df.drop(columns=[c])
+
+    # 7. Set Hour as the actual index to mimic ENTSO-E CSV format perfectly
     if 'Hour' in df.columns:
         df = df.set_index('Hour')
         df.index.name = 'Hour (CET)'
@@ -262,8 +262,13 @@ def get_official_exchange_rate(delivery_date: str) -> float:
 
 def get_dam_prices(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'CZ'"] = "CZ",
 ) -> str:
     """Fetch Czech day-ahead hourly prices and volumes in EUR."""
+    if market_area.upper() != "CZ":
+        logger.warning(f"OTE client only supports CZ market area. Requested: {market_area}")
+        return f"# No day-ahead prices available for {market_area} on {delivery_date} (OTE only supports CZ)"
+
     def fetch():
         # Handle API cutover dates dynamically per the OTE manual
         if delivery_date >= "2025-10-01":
@@ -292,13 +297,13 @@ def get_dam_prices(
             logger.warning(f"Failed to get DAM prices for {delivery_date}: {e}")
             return pd.DataFrame()
 
-    df = _load_or_fetch("ote", "dam_prices", "CZ", delivery_date, fetch)
+    df = cache_layer._load_or_fetch("ote", "dam_prices", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No day-ahead prices found for CZ on {delivery_date}")
-        return f"# No day-ahead prices available for CZ on {delivery_date}"
+        logger.warning(f"No day-ahead prices found for {market_area} on {delivery_date}")
+        return f"# No day-ahead prices available for {market_area} on {delivery_date}"
 
-    return _format_ote_table(df, f"Day-Ahead Prices for CZ on {delivery_date}")
+    return _format_ote_table(df, f"Day-Ahead Prices for {market_area.upper()} on {delivery_date}")
 
 # ─────────────────────────────────────────────
 # INTRADAY CONTINUOUS MARKET
@@ -307,8 +312,13 @@ def get_dam_prices(
 
 def get_intraday_prices(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'CZ'"] = "CZ",
 ) -> str:
     """Fetch Czech intraday continuous market prices."""
+    if market_area.upper() != "CZ":
+        logger.warning(f"OTE client only supports CZ market area. Requested: {market_area}")
+        return f"# No intraday prices available for {market_area} on {delivery_date} (OTE only supports CZ)"
+
     def fetch():
         params = {
             "StartDate": delivery_date,
@@ -329,22 +339,23 @@ def get_intraday_prices(
             logger.warning(f"Failed to get intraday prices for {delivery_date}: {e}")
             return pd.DataFrame()
 
-    df = _load_or_fetch("ote", "intraday_prices", "CZ", delivery_date, fetch)
+    df = cache_layer._load_or_fetch("ote", "intraday_prices", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No intraday prices found for CZ on {delivery_date}")
-        return f"# No intraday prices available for CZ on {delivery_date}"
+        logger.warning(f"No intraday prices found for {market_area} on {delivery_date}")
+        return f"# No intraday prices available for {market_area} on {delivery_date}"
 
-    return _format_ote_table(df, f"Intraday Continuous Prices for CZ on {delivery_date}")
+    return _format_ote_table(df, f"Intraday Continuous Prices for {market_area.upper()} on {delivery_date}")
 
 
 def get_intraday_prices_period(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'CZ'"] = "CZ",
 ) -> str:
     """Fallback reference for tools calling the specific period fetcher."""
     # Since get_intraday_prices automatically aggregates periods to hours now,
     # we just map this request back to the primary function.
-    return get_intraday_prices(delivery_date)
+    return get_intraday_prices(delivery_date, market_area)
 
 
 # ─────────────────────────────────────────────
@@ -354,8 +365,13 @@ def get_intraday_prices_period(
 def get_ida_prices(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
     auction: Annotated[Optional[str], "Auction type: 'IDA1', 'IDA2', or 'IDA3'. None for all."] = None,
+    market_area: Annotated[str, "Bidding zone, e.g. 'CZ'"] = "CZ",
 ) -> str:
     """Fetch IDA (Intraday Auction) results for Czech market."""
+    if market_area.upper() != "CZ":
+        logger.warning(f"OTE client only supports CZ market area. Requested: {market_area}")
+        return f"# No IDA prices available for {market_area} on {delivery_date} (OTE only supports CZ)"
+
     def fetch():
         # OTE requires the Auction param. If None, we must query all 3 explicitly.
         auctions_to_fetch = [auction] if auction else ["IDA1", "IDA2", "IDA3"]
@@ -385,13 +401,13 @@ def get_ida_prices(
         return _aggregate_to_hourly(combined_df)
 
     query_type = f"ida_prices_{auction}" if auction else "ida_prices_all"
-    df = _load_or_fetch("ote", query_type, "CZ", delivery_date, fetch)
+    df = cache_layer._load_or_fetch("ote", query_type, market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No IDA prices found for CZ on {delivery_date}")
-        return f"# No IDA prices available for CZ on {delivery_date}"
+        logger.warning(f"No IDA prices found for {market_area} on {delivery_date}")
+        return f"# No IDA prices available for {market_area} on {delivery_date}"
 
-    title = f"IDA Auction Prices for CZ on {delivery_date}" + (f" ({auction})" if auction else "")
+    title = f"IDA Auction Prices for {market_area.upper()} on {delivery_date}" + (f" ({auction})" if auction else "")
     return _format_ote_table(df, title)
 
 # ─────────────────────────────────────────────
@@ -402,8 +418,13 @@ def get_ida_prices(
 def get_imbalance_settlement(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
     version: Annotated[int, "Settlement version: 0=daily, 1=monthly, 2=final"] = 0,
+    market_area: Annotated[str, "Bidding zone, e.g. 'CZ'"] = "CZ",
 ) -> str:
     """Fetch Czech imbalance settlement data."""
+    if market_area.upper() != "CZ":
+        logger.warning(f"OTE client only supports CZ market area. Requested: {market_area}")
+        return f"# No imbalance settlement available for {market_area} on {delivery_date} (OTE only supports CZ)"
+
     exchange_rate = get_official_exchange_rate(delivery_date)
 
     def fetch():
@@ -440,13 +461,13 @@ def get_imbalance_settlement(
             logger.warning(f"Failed to get imbalance settlement for {delivery_date}: {e}")
             return pd.DataFrame()
 
-    df = _load_or_fetch("ote", f"imbalance_v{version}", "CZ", delivery_date, fetch)
+    df = cache_layer._load_or_fetch("ote", f"imbalance_v{version}", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No imbalance settlement available for CZ on {delivery_date}")
-        return f"# No imbalance settlement available for CZ on {delivery_date}"
+        logger.warning(f"No imbalance settlement available for {market_area} on {delivery_date}")
+        return f"# No imbalance settlement available for {market_area} on {delivery_date}"
 
-    header = f"# Imbalance Settlement for CZ on {delivery_date} (v{version})\n"
+    header = f"# Imbalance Settlement for {market_area.upper()} on {delivery_date} (v{version})\n"
     header += "# Source: OTE Czech Republic\n"
     header += "# Note: 15-minute periods have been aggregated into Hourly records\n"
     header += f"# Note: Financial values converted from CZK to EUR at official rate of {exchange_rate} CZK/EUR\n\n"
@@ -455,32 +476,9 @@ def get_imbalance_settlement(
     return header + df.to_csv(index=True)
 
 
-def _load_or_fetch(source: str, query_type: str, market_area: str, date_str: str, fetch_fn):
-    """Cache wrapper for OTE data."""
-    try:
-        cached_df = cache_layer.load_cached(source, query_type, market_area, date_str)
-        if cached_df is not None:
-            logger.debug(f"Cache hit: {source}/{query_type}/{market_area}/{date_str}")
-            return cached_df
-    except Exception as e:
-        logger.warning(f"Cache read error: {e}")
-
-    try:
-        df = fetch_fn()
-        if df is not None and not df.empty:
-            try:
-                cache_layer.save_to_cache(df, source, query_type, market_area, date_str)
-            except Exception as e:
-                logger.warning(f"Cache write error: {e}")
-        return df
-    except Exception as e:
-        logger.error(f"Fetch error for {source}/{query_type}/{market_area}/{date_str}: {e}")
-        return pd.DataFrame()
-
-
 if __name__ == "__main__":
     import sys
-    date = sys.argv[1] if len(sys.argv) > 1 else "2026-04-30"
+    date = sys.argv[1] if len(sys.argv) > 1 else "2026-04-28"
     deleted_count = cache_layer.clear_cache(source="ote")
     print(f"Deleted {deleted_count} parquet files from the cache.")
 
@@ -499,166 +497,166 @@ if __name__ == "__main__":
 """
 Reference output
 === get_dam_prices ===
-# Day-Ahead Prices for CZ on 2026-04-30
+# Day-Ahead Prices for CZ on 2026-04-28
 # Source: OTE Czech Republic
 # Note: 15-minute periods have been aggregated into Hourly records
 
-Hour (CET),Price EUR/MWh,Price_StdDev,Price_Range,HourlyPrice_StdDev,HourlyPrice_Range,Volume MWh
-00:00,107.71,3.13,6.91,0.0,0.0,3100.48
-01:00,105.52,1.31,2.93,0.0,0.0,3065.05
-02:00,103.63,1.82,3.84,0.0,0.0,3103.98
-03:00,105.39,1.07,2.48,0.0,0.0,3149.32
-04:00,110.02,5.21,11.53,0.0,0.0,3219.58
-05:00,120.44,7.5,17.25,0.0,0.0,3282.98
-06:00,132.12,11.56,25.45,0.0,0.0,3653.2
-07:00,122.05,21.34,50.44,0.0,0.0,3708.35
-08:00,101.18,36.49,82.75,0.0,0.0,3015.0
-09:00,47.51,51.56,114.26,0.0,0.0,2971.52
-10:00,0.24,1.26,3.02,0.0,0.0,2907.9
-11:00,-2.5,3.21,7.07,0.0,0.0,2949.7
-12:00,-13.47,6.15,14.76,0.0,0.0,3122.42
-13:00,-27.55,4.27,9.61,0.0,0.0,3198.5
-14:00,-21.05,4.83,11.7,0.0,0.0,3192.75
-15:00,-8.07,5.6,13.14,0.0,0.0,2970.08
-16:00,1.83,5.63,13.49,0.0,0.0,2741.8
-17:00,39.89,45.2,94.86,0.0,0.0,2656.98
-18:00,103.43,40.84,95.49,0.0,0.0,2516.2
-19:00,145.36,30.81,70.61,0.0,0.0,2709.48
-20:00,170.52,12.31,28.29,0.0,0.0,3679.65
-21:00,131.6,28.18,64.5,0.0,0.0,3305.52
-22:00,120.92,11.45,25.95,0.0,0.0,2815.15
-23:00,111.6,6.29,13.9,0.0,0.0,2688.95
+Hour (CET),Price EUR/MWh,Price EUR/MWh StdDev,Price EUR/MWh Range,Volume MWh
+00:00,116.03,4.09,9.54,3842.55
+01:00,111.44,2.35,5.46,3661.88
+02:00,107.98,0.35,0.81,3679.58
+03:00,108.07,0.85,1.92,3711.42
+04:00,110.61,3.48,7.81,3694.6
+05:00,117.18,6.14,13.68,3736.25
+06:00,127.9,3.47,7.9,4061.82
+07:00,126.18,11.95,26.9,4267.65
+08:00,114.61,16.93,38.5,3250.78
+09:00,77.9,37.53,87.23,3337.12
+10:00,29.58,23.69,52.64,3669.18
+11:00,-0.04,0.46,1.05,4021.8
+12:00,-3.8,2.51,5.81,4370.23
+13:00,-14.2,3.9,9.33,4324.0
+14:00,-11.24,3.89,9.16,4317.73
+15:00,8.36,8.69,21.0,4188.88
+16:00,42.17,33.61,78.19,3683.85
+17:00,60.69,37.04,88.04,3304.82
+18:00,96.2,22.19,47.46,2902.02
+19:00,123.48,14.45,33.83,3299.62
+20:00,140.27,3.98,7.99,4409.0
+21:00,121.49,8.39,18.08,4100.77
+22:00,115.8,6.31,14.83,3870.8
+23:00,106.41,3.66,8.75,3781.22
 
 
 === get_intraday_prices ===
-# Intraday Continuous Prices for CZ on 2026-04-30
+# Intraday Continuous Prices for CZ on 2026-04-28
 # Source: OTE Czech Republic
 # Note: 15-minute periods have been aggregated into Hourly records
 
-Hour (CET),Price EUR/MWh,Price_StdDev,Price_Range,Volume MWh
-00:00,106.68,0.15,0.35,500.12
-01:00,106.67,0.4,0.91,320.85
-02:00,104.88,0.28,0.6,341.5
-03:00,106.22,1.14,2.53,336.22
-04:00,113.46,1.32,2.69,297.32
-05:00,119.36,3.41,8.33,476.67
-06:00,136.39,5.69,12.35,915.28
-07:00,130.14,7.71,17.46,1371.52
-08:00,106.98,13.62,31.4,803.42
-09:00,55.44,27.79,63.36,991.0
-10:00,15.37,4.12,9.08,719.9
-11:00,1.7,0.79,1.64,917.8
-12:00,-4.51,0.19,0.46,1179.18
-13:00,3.47,2.13,4.47,1180.05
-14:00,-13.74,1.22,2.98,1647.52
-15:00,-0.21,1.18,2.74,1125.8
-16:00,5.04,2.96,6.12,866.48
-17:00,25.09,13.57,30.01,850.72
-18:00,95.13,13.01,29.45,841.0
-19:00,134.38,6.52,14.5,2292.67
-20:00,160.32,2.02,4.33,1771.12
-21:00,134.96,6.43,15.09,1393.92
-22:00,117.68,1.83,4.4,1588.38
-23:00,107.22,1.71,4.16,1769.58
+Hour (CET),Price EUR/MWh,Price EUR/MWh StdDev,Price EUR/MWh Range,Volume MWh
+00:00,101.35,2.59,5.65,578.38
+01:00,99.94,0.67,1.62,435.28
+02:00,96.2,0.58,1.21,394.68
+03:00,96.63,0.55,1.16,358.78
+04:00,100.4,0.43,1.03,356.5
+05:00,103.93,1.81,4.04,327.8
+06:00,108.84,0.5,1.02,689.52
+07:00,107.12,2.6,5.9,778.25
+08:00,91.38,11.17,26.11,1041.25
+09:00,52.68,11.66,25.87,1195.3
+10:00,7.94,7.31,16.83,1270.7
+11:00,-2.11,0.59,1.13,1652.68
+12:00,-12.24,1.43,3.33,850.3
+13:00,-12.55,0.57,1.35,762.97
+14:00,-7.12,2.85,6.05,747.65
+15:00,1.06,2.3,4.69,921.72
+16:00,19.57,9.59,21.56,692.3
+17:00,36.47,9.0,20.1,667.45
+18:00,89.3,8.78,18.38,772.0
+19:00,114.49,1.66,4.0,1470.58
+20:00,131.81,3.67,8.08,708.45
+21:00,112.82,4.65,9.54,797.82
+22:00,103.54,2.57,5.79,837.75
+23:00,93.49,3.13,7.57,983.4
 
 
 === get_ida_prices ===
-# IDA Auction Prices for CZ on 2026-04-30
+# IDA Auction Prices for CZ on 2026-04-28
 # Source: OTE Czech Republic
 # Note: 15-minute periods have been aggregated into Hourly records
 
-Hour (CET),Auction,Price EUR/MWh,PriceCZ_StdDev,PriceCZ_Range,Volume MWh,Import MWh,Export MWh,Saldo MWh
-00:00,IDA1,103.7,2.9,6.28,40.4,-22.9,0.68,-22.22
-00:00,IDA2,105.3,2.69,5.87,106.5,-53.88,107.28,53.4
-01:00,IDA1,101.73,0.62,1.27,34.0,-18.0,0.75,-17.25
-01:00,IDA2,103.62,4.23,9.86,109.0,-55.2,131.52,76.32
-02:00,IDA1,99.88,1.3,3.0,37.5,-8.85,9.88,1.03
-02:00,IDA2,101.8,1.3,2.77,115.3,-16.12,82.62,66.5
-03:00,IDA1,103.56,5.02,8.8,44.0,-20.85,34.17,13.32
-03:00,IDA2,100.82,1.01,2.19,108.2,-13.75,70.75,57.0
-04:00,IDA1,109.1,1.57,3.57,53.3,-74.22,106.15,31.92
-04:00,IDA2,103.5,3.26,7.68,58.7,-124.82,72.97,-51.85
-05:00,IDA1,121.76,8.45,18.58,42.2,-31.65,64.25,32.6
-05:00,IDA2,113.3,7.71,17.91,48.1,-162.82,118.6,-44.22
-06:00,IDA1,132.84,9.54,20.81,27.4,-27.75,31.38,3.62
-06:00,IDA2,125.44,6.72,14.06,412.2,-46.12,422.12,376.0
-07:00,IDA1,118.29,18.76,43.78,37.3,-29.62,8.12,-21.5
-07:00,IDA2,115.0,17.66,42.55,406.2,0.0,390.35,390.35
-08:00,IDA1,92.64,26.66,63.03,50.7,-224.3,216.62,-7.68
-08:00,IDA2,91.68,28.48,65.65,39.0,-71.92,85.25,13.32
-09:00,IDA1,44.74,41.12,91.45,45.0,-72.6,72.45,-0.15
-09:00,IDA2,38.88,39.85,89.47,31.4,-51.15,43.05,-8.1
-10:00,IDA1,11.0,7.34,15.0,753.2,-668.18,0.0,-668.18
-10:00,IDA2,12.0,1.52,3.68,279.4,-245.2,0.0,-245.2
-11:00,IDA1,9.0,2.36,5.44,683.0,-598.67,0.0,-598.67
-11:00,IDA2,-0.73,2.97,6.79,419.0,-495.88,83.02,-412.85
-12:00,IDA1,1.0,5.37,12.46,505.8,-409.02,0.0,-409.02
-12:00,IDA2,2.4,6.83,16.23,457.6,-446.62,0.0,-446.62
-12:00,IDA3,-4.67,3.07,7.45,45.7,-116.52,72.7,-43.82
-13:00,IDA1,-11.0,1.58,3.47,406.0,-315.58,0.0,-315.58
-13:00,IDA2,0.0,0.85,2.07,261.4,-236.38,0.0,-236.38
-13:00,IDA3,-12.02,3.64,8.32,221.7,-277.45,57.42,-220.02
-14:00,IDA1,-7.0,2.64,6.24,430.2,-331.4,0.0,-331.4
-14:00,IDA2,-0.3,6.71,14.51,546.3,-523.78,0.0,-523.78
-14:00,IDA3,-14.3,3.33,8.06,75.1,-146.15,73.78,-72.38
-15:00,IDA1,3.0,5.55,12.78,634.9,-535.8,0.0,-535.8
-15:00,IDA2,1.71,1.45,2.58,355.3,-344.58,6.72,-337.85
-15:00,IDA3,-5.0,5.26,12.36,20.2,-46.2,28.6,-17.6
-16:00,IDA1,19.0,18.98,41.87,298.7,-233.38,0.0,-233.38
-16:00,IDA2,12.21,12.32,27.99,39.3,-15.95,10.65,-5.3
-16:00,IDA3,5.61,7.76,17.07,21.8,-78.68,59.03,-19.65
-17:00,IDA1,56.69,23.2,54.44,62.7,-30.38,83.12,52.75
-17:00,IDA2,22.9,21.7,49.45,47.0,-144.62,116.05,-28.58
-17:00,IDA3,14.52,29.55,64.92,99.8,-137.6,39.6,-98.0
-18:00,IDA1,103.25,32.43,75.11,33.0,-12.82,7.2,-5.62
-18:00,IDA2,86.1,34.71,81.82,36.4,-290.5,296.65,6.15
-18:00,IDA3,88.6,32.36,76.14,8.9,-37.15,34.12,-3.02
-19:00,IDA1,149.01,29.18,65.42,43.9,-32.52,34.9,2.38
-19:00,IDA2,127.0,28.06,64.02,430.6,-33.9,435.8,401.9
-19:00,IDA3,135.93,27.94,64.03,115.0,-56.48,161.1,104.62
-20:00,IDA1,174.34,9.56,20.24,33.8,-0.8,1.35,0.55
-20:00,IDA2,157.42,5.74,12.67,387.6,-267.4,619.55,352.15
-20:00,IDA3,165.6,9.91,22.62,63.9,-91.38,148.75,57.38
-21:00,IDA1,135.27,22.32,50.38,30.0,-27.52,24.9,-2.62
-21:00,IDA2,131.38,24.69,57.0,529.4,-10.18,525.5,515.33
-21:00,IDA3,135.53,23.05,53.44,15.1,-61.7,50.9,-10.8
-22:00,IDA1,121.92,10.48,23.34,29.9,-41.82,48.22,6.4
-22:00,IDA2,113.55,8.63,19.65,20.1,-77.6,75.2,-2.4
-22:00,IDA3,118.43,6.89,15.78,11.0,-52.78,43.8,-8.98
-23:00,IDA1,111.63,4.55,11.0,48.7,-49.12,55.92,6.8
-23:00,IDA2,106.36,4.72,11.05,19.7,-68.25,56.25,-12.0
-23:00,IDA3,111.98,3.84,8.56,10.1,-10.7,3.97,-6.72
+Hour (CET),Auction,Price EUR/MWh,Price EUR/MWh StdDev,Price EUR/MWh Range,Volume MWh,Import MWh,Export MWh,Saldo MWh
+00:00,IDA1,119.99,3.48,7.87,49.4,-50.97,82.72,31.75
+00:00,IDA2,103.78,3.23,7.82,48.8,-246.52,207.2,-39.32
+01:00,IDA1,114.27,2.6,5.9,29.5,-43.98,57.12,13.15
+01:00,IDA2,100.09,2.5,5.89,46.4,-237.88,205.75,-32.12
+02:00,IDA1,109.74,0.67,1.6,23.6,-29.48,27.68,-1.8
+02:00,IDA2,97.69,0.56,1.35,35.1,-352.9,324.8,-28.1
+03:00,IDA1,110.19,0.75,1.61,23.8,-31.4,25.42,-5.98
+03:00,IDA2,97.38,0.76,1.72,26.9,-160.7,143.55,-17.15
+04:00,IDA1,115.3,5.61,12.42,40.9,-50.62,79.28,28.65
+04:00,IDA2,101.32,3.19,6.68,35.8,-214.9,187.98,-26.92
+05:00,IDA1,119.31,3.5,7.3,31.2,-31.92,48.18,16.25
+05:00,IDA2,106.5,3.29,7.42,39.1,-213.35,191.85,-21.5
+06:00,IDA1,124.41,3.01,6.23,34.2,-80.08,84.62,4.55
+06:00,IDA2,114.52,3.38,7.85,48.5,-134.02,97.02,-37.0
+07:00,IDA1,123.23,11.84,26.62,36.0,-90.72,94.65,3.93
+07:00,IDA2,113.98,10.06,23.27,37.3,-54.48,38.42,-16.05
+08:00,IDA1,112.49,15.06,35.34,46.4,-31.57,45.22,13.65
+08:00,IDA2,102.56,14.78,34.3,49.6,-41.68,19.25,-22.42
+09:00,IDA1,75.63,33.91,76.51,27.4,-10.02,0.55,-9.48
+09:00,IDA2,65.32,36.52,81.75,35.9,-29.82,23.42,-6.4
+10:00,IDA1,29.56,20.65,44.1,27.8,-1.32,4.15,2.82
+10:00,IDA2,13.32,21.2,44.94,38.1,-17.92,0.0,-17.92
+11:00,IDA1,1.21,2.34,4.76,35.9,-0.55,15.95,15.4
+11:00,IDA2,-2.31,1.35,2.93,37.3,-173.68,167.1,-6.58
+12:00,IDA1,-3.88,5.19,10.83,29.4,-0.88,9.25,8.38
+12:00,IDA2,-10.06,1.67,3.91,37.4,-93.62,70.0,-23.62
+12:00,IDA3,-12.08,5.94,13.62,10.2,-57.28,59.88,2.6
+13:00,IDA1,-15.04,4.57,9.52,19.8,-0.6,0.9,0.3
+13:00,IDA2,-12.93,2.4,4.99,19.5,-88.3,89.25,0.95
+13:00,IDA3,-6.57,1.76,3.9,5.4,-8.17,12.05,3.88
+14:00,IDA1,-12.71,3.51,8.08,21.1,-0.57,4.08,3.5
+14:00,IDA2,-11.24,1.66,3.5,28.0,-54.58,74.3,19.73
+14:00,IDA3,-7.27,1.97,4.56,8.9,-3.9,2.2,-1.7
+15:00,IDA1,7.8,9.76,23.0,27.3,-1.95,0.75,-1.2
+15:00,IDA2,-6.1,4.44,9.98,23.8,-36.4,26.6,-9.8
+15:00,IDA3,5.04,1.88,3.95,7.6,-23.1,30.22,7.12
+16:00,IDA1,38.41,23.39,51.11,44.7,-13.48,0.62,-12.85
+16:00,IDA2,6.46,11.96,26.01,48.4,-85.95,52.2,-33.75
+16:00,IDA3,23.54,22.22,41.78,5.2,-38.05,40.83,2.78
+17:00,IDA1,63.69,36.44,83.22,45.5,-2.05,19.5,17.45
+17:00,IDA2,19.36,23.71,54.73,55.6,-64.1,30.62,-33.48
+17:00,IDA3,55.34,25.24,55.42,19.1,-48.62,59.52,10.9
+18:00,IDA1,95.31,22.77,47.46,27.6,-0.22,1.78,1.55
+18:00,IDA2,109.8,25.59,54.39,48.4,-152.0,196.82,44.82
+18:00,IDA3,108.96,33.8,68.15,29.5,-100.92,127.02,26.1
+19:00,IDA1,122.73,15.21,35.83,27.6,-0.75,0.75,0.0
+19:00,IDA2,133.94,13.65,28.14,41.6,-287.98,315.45,27.48
+19:00,IDA3,126.04,23.44,46.07,6.0,-23.75,22.18,-1.58
+20:00,IDA1,141.88,4.65,11.01,22.6,-0.88,0.82,-0.05
+20:00,IDA2,160.33,18.2,44.19,33.5,-302.12,322.42,20.3
+20:00,IDA3,140.0,10.23,22.83,72.2,0.0,64.6,64.6
+21:00,IDA1,124.62,5.51,11.41,29.4,-0.45,12.18,11.72
+21:00,IDA2,130.34,14.37,32.05,32.6,-129.65,136.7,7.05
+21:00,IDA3,119.0,15.26,34.22,78.2,0.0,73.25,73.25
+22:00,IDA1,114.38,8.11,19.8,24.8,-11.92,0.28,-11.65
+22:00,IDA2,110.9,7.82,16.59,26.9,-149.35,141.02,-8.32
+22:00,IDA3,104.42,12.36,28.15,11.6,-47.85,54.65,6.8
+23:00,IDA1,104.54,3.88,9.17,20.2,-10.58,0.35,-10.22
+23:00,IDA2,102.76,5.92,12.18,29.6,-139.85,128.82,-11.02
+23:00,IDA3,89.77,11.2,27.1,10.4,-54.12,62.7,8.57
 
 
 === get_imbalance_settlement ===
-# Imbalance Settlement for CZ on 2026-04-30 (v0)
+# Imbalance Settlement for CZ on 2026-04-28 (v0)
 # Source: OTE Czech Republic
 # Note: 15-minute periods have been aggregated into Hourly records
-# Note: Financial values converted from CZK to EUR at official rate of 24.36 CZK/EUR
+# Note: Financial values converted from CZK to EUR at official rate of 24.37 CZK/EUR
 
-Hour (CET),System Imbalance MWh,Absolute Imbalance Sum MWh,Positive Imbalance MWh,Negative Imbalance MWh,Rounded Imbalance MWh,Regulating Energy Cost EUR,Imbalance Cost EUR,Imbalance Price EUR/MWh,SettlImbalancePrice_StdDev,SettlImbalancePrice_Range,Counter Imbalance Price EUR/MWh,SettlCounterImbalancePrice_StdDev,SettlCounterImbalancePrice_Range,Weighted Avg RE Price EUR/MWh,PriceWARE_StdDev,PriceWARE_Range,Opposite Direction RE Price EUR/MWh,PriceRE_StdDev,PriceRE_Range,Weighted Avg Intraday Price EUR/MWh,PriceWAIM_StdDev,PriceWAIM_Range,Base Curve Price EUR/MWh,PriceCurve_StdDev,PriceCurve_Range
-00:00,-109.54,264.52,77.48,-187.04,-0.14,12126.78,-14279.81,132.86,196.43,446.12,132.86,196.43,446.12,117.98,588.49,1316.41,130.85,149.67,359.55,116.94,3.65,8.69,123.87,530.23,1184.0
-01:00,-54.8,275.22,110.21,-165.01,-0.07,3343.25,-6414.25,116.93,9.67,22.22,116.93,9.67,22.22,46.45,585.31,1402.03,77.98,524.82,1218.98,116.93,9.67,22.22,61.85,288.6,681.9
-02:00,-53.23,235.08,90.96,-144.12,-0.13,4071.52,-6120.61,115.14,6.86,14.67,115.14,6.86,14.67,72.12,668.95,1578.27,86.44,843.38,1876.46,115.14,6.86,14.67,74.41,694.4,1642.2
-03:00,-44.97,232.36,93.73,-138.63,-0.07,4728.68,-5219.55,116.49,27.83,61.66,116.49,27.83,61.66,103.65,213.14,447.07,108.62,74.41,165.41,116.49,27.83,61.66,106.5,215.07,450.82
-04:00,-46.97,278.85,115.95,-162.9,0.01,5555.56,-6022.21,126.94,147.59,322.59,126.94,147.59,322.59,114.68,371.7,738.44,118.01,331.52,776.35,123.71,32.14,65.5,117.14,406.51,815.35
-05:00,-151.87,364.41,106.26,-258.15,-0.08,19007.73,-20492.35,134.27,147.45,330.18,134.27,147.45,330.18,124.42,215.02,506.31,124.45,179.54,416.55,129.62,83.16,202.92,133.02,207.67,452.32
-06:00,-172.6,415.77,121.61,-294.16,0.01,25755.55,-27890.31,156.53,342.8,735.58,156.53,342.8,735.58,146.6,224.82,491.62,146.79,238.01,516.68,146.65,138.54,300.74,156.53,342.8,735.58
-07:00,-121.0,345.01,112.02,-232.99,0.15,18053.87,-19448.49,167.88,601.03,1334.09,167.88,601.03,1334.09,160.66,996.55,2350.24,156.49,808.32,1913.48,140.4,187.77,425.36,163.32,748.1,1778.29
-08:00,-89.11,400.4,155.6,-244.79,0.05,12039.27,-13502.21,103.23,1744.96,3967.71,103.23,1744.96,3967.71,104.58,1061.82,2565.5,99.79,1671.3,3705.64,112.11,561.94,1264.84,105.15,1262.48,3020.7
-09:00,41.83,383.39,212.61,-170.78,-0.21,395.28,-1581.13,21.25,1035.18,2070.36,21.25,1035.18,2070.36,25.02,574.88,1229.22,21.25,1035.18,2070.36,50.31,789.32,1581.93,29.72,720.4,1514.85
-10:00,44.17,484.18,264.16,-220.02,-0.09,-366.18,-276.71,-11.34,389.27,845.69,-11.34,389.27,845.69,7.72,1026.62,2326.82,-10.79,394.57,839.45,5.11,100.54,221.26,-2.88,687.8,1669.74
-11:00,13.41,426.88,220.15,-206.74,-0.52,-287.57,-243.22,17.47,798.77,1637.4,17.47,798.77,1637.4,76.86,2648.52,5385.85,18.97,754.02,1572.2,1.69,307.4,539.98,22.46,608.53,1275.35
-12:00,-4.07,371.27,183.56,-187.71,-0.1,356.8,-221.89,27.81,865.65,2025.64,27.81,865.65,2025.64,122.92,3229.67,6589.69,31.1,733.36,1661.11,0.62,250.15,506.02,38.27,551.44,1274.79
-13:00,-70.39,509.81,219.72,-290.09,-0.22,3794.08,-5771.2,38.5,969.61,2054.96,38.5,969.61,2054.96,40.37,688.37,1465.29,40.25,897.25,1846.98,8.6,281.69,608.66,54.36,559.56,1133.06
-14:00,7.08,447.17,227.14,-220.03,-0.39,-640.09,-283.36,2.12,755.47,1339.77,2.12,755.47,1339.77,67.1,2155.64,5157.56,14.37,404.39,717.4,-13.74,309.86,572.67,36.3,711.38,1667.53
-15:00,-4.21,441.53,218.7,-222.83,-0.23,876.75,-677.6,34.31,791.82,1885.05,34.31,791.82,1885.05,42.87,1184.7,2873.28,36.31,663.5,1609.22,4.92,260.07,548.79,42.51,445.75,1086.22
-16:00,15.91,456.96,236.45,-220.51,-0.02,-2401.51,-291.97,-4.93,385.72,932.5,-4.93,385.72,932.5,13.15,2763.17,5957.11,30.3,1894.13,4179.44,-0.1,202.7,461.72,53.97,1724.96,3703.67
-17:00,60.4,544.0,302.2,-241.8,0.05,-1985.94,-1189.43,-12.32,357.47,707.66,-12.32,357.47,707.66,30.3,202.3,488.4,-12.32,357.47,707.66,14.83,330.49,731.06,31.62,296.66,623.21
-18:00,-83.41,604.03,260.34,-343.69,-0.36,7018.9,-9796.52,110.54,350.03,760.96,110.54,350.03,760.96,84.17,257.17,488.74,97.28,497.9,1063.8,105.4,316.84,717.5,89.2,300.93,604.66
-19:00,-70.05,582.58,256.3,-326.28,-0.5,8959.99,-10269.78,144.65,158.81,353.19,144.65,158.81,353.19,138.21,581.62,1309.41,120.83,375.72,858.44,144.65,158.81,353.19,122.84,478.7,1108.16
-20:00,-111.86,538.92,213.53,-325.39,-0.39,13034.41,-19078.68,170.59,49.3,105.59,170.59,49.3,105.59,114.74,189.11,379.26,121.43,330.3,705.71,170.59,49.3,105.59,121.36,189.29,359.74
-21:00,-149.47,485.53,168.05,-317.49,-0.24,15999.67,-21930.7,145.22,156.71,367.58,145.22,156.71,367.58,106.21,173.1,388.57,115.23,119.23,274.54,145.22,156.71,367.58,113.62,227.24,512.52
-22:00,-13.85,282.15,134.12,-148.03,-0.14,1613.2,-2308.18,96.1,1561.26,3173.55,96.1,1561.26,3173.55,103.17,572.96,1326.41,81.68,1334.55,2799.45,122.82,262.57,570.03,98.73,345.91,645.87
-23:00,-38.46,294.09,127.79,-166.3,-0.14,3441.72,-4518.71,117.48,41.74,101.34,117.48,41.74,101.34,89.68,166.04,353.75,86.03,128.17,263.57,117.48,41.74,101.34,88.2,144.18,331.62
+Hour (CET),System Imbalance MWh,Absolute Imbalance Sum MWh,Positive Imbalance MWh,Negative Imbalance MWh,Rounded Imbalance MWh,Regulating Energy Cost EUR,Imbalance Cost EUR,Imbalance Price EUR/MWh,Imbalance Price EUR/MWh StdDev,Imbalance Price EUR/MWh Range,Counter Imbalance Price EUR/MWh,Counter Imbalance Price EUR/MWh StdDev,Counter Imbalance Price EUR/MWh Range,Weighted Avg RE Price EUR/MWh,Weighted Avg RE Price EUR/MWh StdDev,Weighted Avg RE Price EUR/MWh Range,Opposite Direction RE Price EUR/MWh,Opposite Direction RE Price EUR/MWh StdDev,Opposite Direction RE Price EUR/MWh Range,Weighted Avg Intraday Price EUR/MWh,Weighted Avg Intraday Price EUR/MWh StdDev,Weighted Avg Intraday Price EUR/MWh Range,Base Curve Price EUR/MWh,Base Curve Price EUR/MWh StdDev,Base Curve Price EUR/MWh Range
+00:00,-12.48,307.18,147.32,-159.86,0.29,1389.41,-2431.57,55.45,1560.61,2728.17,55.45,1560.61,2728.17,91.81,232.4,539.56,50.03,1411.7,2567.14,101.35,275.53,559.99,92.9,230.4,487.26
+01:00,-32.5,289.2,128.31,-160.89,0.27,3320.85,-3605.28,110.2,16.41,39.37,110.2,16.41,39.37,114.76,822.06,1790.78,98.38,199.88,357.26,110.2,16.41,39.37,97.31,240.76,534.66
+02:00,-59.94,319.62,129.89,-189.73,0.03,5538.02,-6379.51,106.45,14.06,29.61,106.45,14.06,29.61,91.69,182.65,374.55,94.48,265.26,555.39,106.45,14.06,29.61,95.06,196.3,398.01
+03:00,-39.38,298.53,129.57,-168.95,0.21,3034.9,-4209.64,106.89,13.56,28.32,106.89,13.56,28.32,77.52,397.86,954.92,96.66,201.84,427.21,106.89,13.56,28.32,79.74,394.48,941.73
+04:00,-30.65,244.12,106.74,-137.37,0.05,2689.71,-3391.22,110.66,10.6,25.15,110.66,10.6,25.15,88.34,112.3,236.49,97.66,186.08,395.52,110.66,10.6,25.15,89.93,112.21,222.63
+05:00,-55.79,267.68,105.92,-161.76,0.29,4508.96,-6360.78,114.19,43.95,98.35,114.19,43.95,98.35,78.71,322.8,720.62,80.79,345.76,780.57,114.19,43.95,98.35,81.11,338.66,728.51
+06:00,-3.36,325.55,161.09,-164.46,-0.01,626.94,-932.73,89.39,1452.28,2913.33,89.39,1452.28,2913.33,121.36,1838.53,3791.82,63.34,1093.19,2572.98,113.96,254.59,517.54,82.55,236.68,493.05
+07:00,12.77,462.79,237.75,-225.04,0.32,-758.27,-11.21,30.0,1462.42,2924.85,30.0,1462.42,2924.85,143.7,6089.83,13971.32,24.4,1189.26,2378.51,101.99,296.59,643.82,57.88,981.51,2109.2
+08:00,7.6,535.6,271.64,-263.96,0.04,600.29,-639.26,65.66,1260.35,2744.9,65.66,1260.35,2744.9,73.52,986.62,2062.23,50.68,883.26,1921.82,91.38,489.92,1136.24,68.46,299.13,660.63
+09:00,109.71,609.21,359.46,-249.75,0.17,-2880.8,-204.44,-1.9,92.85,185.7,-1.9,92.85,185.7,25.9,321.77,664.25,-1.9,92.85,185.7,42.42,284.18,630.54,20.75,354.81,668.58
+10:00,265.42,643.32,454.37,-188.95,0.23,567.1,-4252.14,-15.93,109.42,231.95,-15.93,109.42,231.95,-2.01,127.56,304.22,-13.72,184.89,432.08,-2.33,178.22,410.21,-11.55,133.64,325.58
+11:00,147.22,631.38,389.3,-242.08,0.4,-3955.24,-3171.25,-19.48,221.52,470.06,-19.48,221.52,470.06,26.34,223.95,545.8,-13.04,386.25,783.25,-12.37,14.34,27.38,21.28,214.49,517.81
+12:00,136.95,593.41,365.17,-228.24,0.51,-4783.88,-3040.01,-22.5,34.72,81.04,-22.5,34.72,81.04,32.3,308.2,734.61,0.0,0.0,0.0,-22.5,34.72,81.04,29.86,150.54,358.97
+13:00,61.11,587.41,324.26,-263.15,0.59,-1861.37,-1578.0,-6.32,817.07,1640.95,-6.32,817.07,1640.95,-44.84,2973.84,6538.14,10.19,540.65,1122.49,-17.68,263.06,532.87,22.15,405.97,976.45
+14:00,134.36,499.6,316.98,-182.62,0.62,-2357.44,-2424.65,-17.37,69.5,147.31,-17.37,69.5,147.31,21.38,348.93,813.19,0.0,0.0,0.0,-17.37,69.5,147.31,18.21,363.85,884.72
+15:00,79.47,591.35,335.41,-255.94,0.66,318.61,-2063.77,-23.72,534.22,1192.25,-23.72,534.22,1192.25,-2.32,642.52,1569.59,-20.19,544.25,1239.7,-9.21,56.04,114.31,-15.67,817.25,1976.49
+16:00,141.59,548.64,345.1,-203.54,0.67,648.81,-2412.09,-15.98,316.31,673.59,-15.98,316.31,673.59,-4.33,409.45,893.08,-15.15,329.26,673.59,9.31,233.65,525.47,-9.4,411.58,923.63
+17:00,113.41,438.34,275.85,-162.49,0.6,-4914.88,-256.11,-1.17,56.9,113.81,-1.17,56.9,113.81,9.29,2083.24,4546.2,-1.17,56.9,113.81,26.21,219.22,489.87,41.61,525.07,1176.6
+18:00,-84.71,416.69,166.01,-250.69,0.36,11160.14,-12466.85,102.86,1749.46,4002.9,102.86,1749.46,4002.9,123.37,566.17,1347.6,98.95,1661.09,3756.64,94.43,437.15,947.99,119.97,924.49,2139.6
+19:00,-75.74,392.44,158.32,-234.13,0.22,7468.78,-9482.17,124.75,40.38,97.43,124.75,40.38,97.43,99.05,252.24,605.33,107.86,165.33,339.23,124.75,40.38,97.43,105.29,268.3,622.55
+20:00,-17.5,320.75,151.63,-169.11,0.14,1674.73,-2491.21,142.07,89.39,196.93,142.07,89.39,196.93,95.77,348.07,844.25,102.14,98.15,225.67,142.07,89.39,196.93,70.94,1148.74,2357.56
+21:00,4.51,275.86,140.17,-135.69,0.26,-342.37,-200.99,32.2,1569.33,3138.66,32.2,1569.33,3138.66,81.93,2192.4,4994.95,28.08,1368.5,2736.99,107.69,348.91,732.49,92.05,496.86,1188.24
+22:00,-18.79,238.47,109.84,-128.63,0.06,2477.64,-2327.11,124.9,303.91,623.56,124.9,303.91,623.56,159.45,2125.08,4788.44,112.74,626.28,1281.62,113.8,62.69,141.15,111.7,670.62,1254.27
+23:00,-51.51,214.03,81.24,-132.8,0.1,3451.32,-5546.56,78.73,1280.03,2622.68,78.73,1280.03,2622.68,90.37,1125.17,2707.84,69.26,1136.5,2426.28,98.62,313.55,684.4,74.53,558.21,1331.85
 """

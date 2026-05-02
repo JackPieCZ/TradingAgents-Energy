@@ -37,7 +37,6 @@ SMARD_BASE_URL = "https://www.smard.de/app/chart_data"
 # SMARD filter IDs for electricity generation by type
 FILTER_IDS = {
     # Generation by source
-    "generation_total": 410,
     "generation_biomass": 4066,
     "generation_hydro": 1226,
     "generation_wind_offshore": 1225,
@@ -53,7 +52,7 @@ FILTER_IDS = {
     # Consumption / load
     "total_load": 410,
     "residual_load": 4359,
-    "forecast_load": 123,
+    "forecast_load": 411,        # CORRECTED: 411 is Prognostizierter Stromverbrauch
     "actual_load": 715,
 
     # Prices (Day-Ahead)
@@ -69,7 +68,10 @@ FILTER_IDS = {
 
     # Forecasts
     "forecast_generation_total": 122,
-    "forecast_generation_wind_solar": 3791,
+    "forecast_wind_onshore": 123,
+    "forecast_wind_offshore": 124,
+    "forecast_solar": 125,
+    "forecast_generation_wind_solar": 5097,  # CORRECTED: 5097 is Prognostizierte Erzeugung Wind und Photovoltaik
 }
 
 _session = None
@@ -112,7 +114,7 @@ def _fetch_smard_series(filter_id: int, resolution: str, date_str: str, region: 
             return pd.DataFrame()
 
         records = []
-        from datetime import timezone  # add this import at the top of the file if needed
+        from datetime import timezone
         for point in series_data:
             if point is None:
                 logger.warning(f"Encountered null data point in SMARD series {filter_id} for date {date_str}")
@@ -159,14 +161,27 @@ def _load_or_fetch(source: str, query_type: str, market_area: str, date_str: str
         return pd.DataFrame()
 
 
+def _format_index(df: pd.DataFrame) -> pd.DataFrame:
+    """Format DatetimeIndex to save LLM tokens and standardize output."""
+    if df is not None and not df.empty and isinstance(df.index, pd.DatetimeIndex):
+        df = df.round(3)  # Round to 3 decimals for cleaner display
+        df.index = df.index.strftime('%H:%M')
+        df.index.name = "Hour"
+    return df
+
+
 def get_german_generation(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'DE-LU'"] = "DE-LU",
     resolution: Annotated[str, "Resolution: 'hour' or 'quarterhour'"] = "hour",
 ) -> str:
     """Fetch German generation breakdown by type from SMARD."""
+    if market_area.upper() != "DE-LU":
+        logger.warning(f"SMARD generation client only supports DE-LU market area. Requested: {market_area}")
+        return f"# No generation data available for {market_area} on {delivery_date} (SMARD supports DE-LU only)"
+
     def fetch():
         generation_types = [
-            ("Total", "generation_total"),
             ("Wind Onshore", "generation_wind_onshore"),
             ("Wind Offshore", "generation_wind_offshore"),
             ("Solar", "generation_solar"),
@@ -184,7 +199,6 @@ def get_german_generation(
         for col_name, filter_name in generation_types:
             filter_id = FILTER_IDS.get(filter_name)
             if filter_id is None:
-                logger.warning(f"Filter ID for {filter_name} not found")
                 continue
 
             df = _fetch_smard_series(filter_id, resolution, delivery_date)
@@ -193,7 +207,6 @@ def get_german_generation(
                 dfs.append(df)
 
         if not dfs:
-            logger.warning(f"No valid generation data fetched for any type in Germany on {delivery_date}")
             return pd.DataFrame()
 
         result = dfs[0]
@@ -207,15 +220,18 @@ def get_german_generation(
         end = CET.localize(date_dt + timedelta(days=1))
         result = result[(result.index >= start) & (result.index < end)]
 
-        return result.fillna(0)
+        result = result.fillna(0)
+        result.insert(0, "Total", result.sum(axis=1))
 
-    df = _load_or_fetch("smard", f"generation_{resolution}", "DE-LU", delivery_date, fetch)
+        return result
+
+    df = _load_or_fetch("smard", f"generation_{resolution}", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No generation data available for Germany on {delivery_date}")
-        return f"# No German generation data for {delivery_date}"
+        return f"# No {market_area.upper()} generation data for {delivery_date}"
 
-    header = f"# German Generation by Type on {delivery_date} ({resolution})\n"
+    df = _format_index(df.copy())
+    header = f"# {market_area.upper()} Generation by Type on {delivery_date} ({resolution})\n"
     header += "# Source: SMARD (Bundesnetzagentur)\n"
     header += "# Unit: MW\n\n"
 
@@ -224,18 +240,21 @@ def get_german_generation(
 
 def get_german_residual_load(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'DE-LU'"] = "DE-LU",
     resolution: Annotated[str, "Resolution: 'hour' or 'quarterhour'"] = "hour",
 ) -> str:
     """Fetch German residual load (total load minus wind and solar) from SMARD."""
+    if market_area.upper() != "DE-LU":
+        logger.warning(f"SMARD residual load client only supports DE-LU market area. Requested: {market_area}")
+        return f"# No residual load data available for {market_area} on {delivery_date} (SMARD supports DE-LU only)"
+
     def fetch():
         filter_id = FILTER_IDS.get("residual_load")
         if filter_id is None:
-            logger.warning("Filter ID for residual load not found")
             return pd.DataFrame()
 
         df = _fetch_smard_series(filter_id, resolution, delivery_date)
         if df.empty:
-            logger.warning(f"No residual load data fetched for Germany on {delivery_date}")
             return pd.DataFrame()
 
         df = df.rename(columns={"value": "Residual Load MW"})
@@ -248,13 +267,13 @@ def get_german_residual_load(
 
         return df
 
-    df = _load_or_fetch("smard", f"residual_load_{resolution}", "DE-LU", delivery_date, fetch)
+    df = _load_or_fetch("smard", f"residual_load_{resolution}", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No residual load data available for Germany on {delivery_date}")
-        return f"# No German residual load data for {delivery_date}"
+        return f"# No {market_area.upper()} residual load data for {delivery_date}"
 
-    header = f"# German Residual Load on {delivery_date} ({resolution})\n"
+    df = _format_index(df.copy())
+    header = f"# {market_area.upper()} Residual Load on {delivery_date} ({resolution})\n"
     header += "# Source: SMARD (Bundesnetzagentur)\n"
     header += "# Unit: MW (Load - Wind - Solar)\n\n"
 
@@ -263,18 +282,21 @@ def get_german_residual_load(
 
 def get_german_total_load(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'DE-LU'"] = "DE-LU",
     resolution: Annotated[str, "Resolution: 'hour' or 'quarterhour'"] = "hour",
 ) -> str:
     """Fetch German total load from SMARD."""
+    if market_area.upper() != "DE-LU":
+        logger.warning(f"SMARD total load client only supports DE-LU market area. Requested: {market_area}")
+        return f"# No total load data available for {market_area} on {delivery_date} (SMARD supports DE-LU only)"
+
     def fetch():
         filter_id = FILTER_IDS.get("total_load")
         if filter_id is None:
-            logger.warning("Filter ID for total load not found")
             return pd.DataFrame()
 
         df = _fetch_smard_series(filter_id, resolution, delivery_date)
         if df.empty:
-            logger.warning(f"No total load data fetched for Germany on {delivery_date}")
             return pd.DataFrame()
 
         df = df.rename(columns={"value": "Total Load MW"})
@@ -287,13 +309,13 @@ def get_german_total_load(
 
         return df
 
-    df = _load_or_fetch("smard", f"total_load_{resolution}", "DE-LU", delivery_date, fetch)
+    df = _load_or_fetch("smard", f"total_load_{resolution}", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No total load data available for Germany on {delivery_date}")
-        return f"# No German total load data for {delivery_date}"
+        return f"# No {market_area.upper()} total load data for {delivery_date}"
 
-    header = f"# German Total Load on {delivery_date} ({resolution})\n"
+    df = _format_index(df.copy())
+    header = f"# {market_area.upper()} Total Load on {delivery_date} ({resolution})\n"
     header += "# Source: SMARD (Bundesnetzagentur)\n"
     header += "# Unit: MW\n\n"
 
@@ -302,7 +324,7 @@ def get_german_total_load(
 
 def get_smard_prices(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
-    market_area: Annotated[str, "Bidding zone (e.g., 'DE-LU', 'AT', 'FR', 'CZ')"],
+    market_area: Annotated[str, "Bidding zone (e.g., 'DE-LU', 'AT', 'FR', 'CZ')"] = "DE-LU",
     resolution: Annotated[str, "Resolution: 'hour' or 'quarterhour'"] = "hour",
 ) -> str:
     """Fetch Day-Ahead Market prices for a specific region from SMARD."""
@@ -312,19 +334,15 @@ def get_smard_prices(
             "NL": "price_nl", "PL": "price_pl", "CZ": "price_cz",
             "DK1": "price_dk1", "DK2": "price_dk2", "CH": "price_ch"
         }
-        filter_name = area_map.get(market_area)
+        filter_name = area_map.get(market_area.upper())
         if not filter_name:
-            logger.warning(f"Market area {market_area} not supported by SMARD prices.")
             return pd.DataFrame()
 
         filter_id = FILTER_IDS.get(filter_name)
 
-        # Note: SMARD region code is usually DE for German data, but for prices it handles
-        # the specific ID mapping internally, so we can just pass "DE" as the base region parameter.
         df = _fetch_smard_series(filter_id, resolution, delivery_date, region="DE")
 
         if df.empty:
-            logger.warning(f"No price data fetched for {market_area} on {delivery_date}")
             return pd.DataFrame()
 
         df = df.rename(columns={"value": "Price EUR/MWh"})
@@ -336,13 +354,14 @@ def get_smard_prices(
 
         return df
 
-    df = _load_or_fetch("smard", f"prices_{market_area}_{resolution}", market_area, delivery_date, fetch)
+    df = _load_or_fetch("smard", f"prices_{market_area.upper()}_{resolution}",
+                        market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No SMARD price data available for {market_area} on {delivery_date}")
-        return f"# No SMARD price data for {market_area} on {delivery_date}"
+        return f"# No SMARD price data for {market_area.upper()} on {delivery_date}"
 
-    header = f"# Day-Ahead Prices for {market_area} on {delivery_date} ({resolution})\n"
+    df = _format_index(df.copy())
+    header = f"# Day-Ahead Prices for {market_area.upper()} on {delivery_date} ({resolution})\n"
     header += "# Source: SMARD (Bundesnetzagentur)\n"
     header += "# Unit: EUR/MWh\n\n"
 
@@ -351,13 +370,21 @@ def get_smard_prices(
 
 def get_german_generation_forecast(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'DE-LU'"] = "DE-LU",
     resolution: Annotated[str, "Resolution: 'hour' or 'quarterhour'"] = "hour",
 ) -> str:
-    """Fetch German forecasted generation (Total and Wind/Solar) from SMARD."""
+    """Fetch German forecasted generation (Total, Wind, Solar) from SMARD."""
+    if market_area.upper() != "DE-LU":
+        logger.warning(f"SMARD generation forecast client only supports DE-LU market area. Requested: {market_area}")
+        return f"# No generation forecast data available for {market_area} on {delivery_date} (SMARD supports DE-LU only)"
+
     def fetch():
         forecast_types = [
             ("Forecast Total", "forecast_generation_total"),
-            ("Forecast Wind & Solar", "forecast_generation_wind_solar"),
+            ("Forecast Wind Onshore", "forecast_wind_onshore"),
+            ("Forecast Wind Offshore", "forecast_wind_offshore"),
+            ("Forecast Solar", "forecast_solar"),
+            ("Forecast Combined Wind & Solar", "forecast_generation_wind_solar"),
         ]
 
         dfs = []
@@ -369,7 +396,6 @@ def get_german_generation_forecast(
                 dfs.append(df)
 
         if not dfs:
-            logger.warning(f"No valid generation forecast data fetched for any type in Germany on {delivery_date}")
             return pd.DataFrame()
 
         result = dfs[0]
@@ -383,15 +409,18 @@ def get_german_generation_forecast(
         end = CET.localize(date_dt + timedelta(days=1))
         result = result[(result.index >= start) & (result.index < end)]
 
-        return result.fillna(0)
+        # Drop columns that failed to fetch instead of filling with misleading zeros
+        result = result.dropna(axis=1, how='all').fillna(0)
 
-    df = _load_or_fetch("smard", f"generation_forecast_{resolution}", "DE-LU", delivery_date, fetch)
+        return result
+
+    df = _load_or_fetch("smard", f"generation_forecast_{resolution}", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No generation forecast data available for Germany on {delivery_date}")
-        return f"# No German generation forecast data for {delivery_date}"
+        return f"# No {market_area.upper()} generation forecast data for {delivery_date}"
 
-    header = f"# German Generation Forecast on {delivery_date} ({resolution})\n"
+    df = _format_index(df.copy())
+    header = f"# {market_area.upper()} Generation Forecast on {delivery_date} ({resolution})\n"
     header += "# Source: SMARD (Bundesnetzagentur)\n"
     header += "# Unit: MW\n\n"
 
@@ -400,18 +429,21 @@ def get_german_generation_forecast(
 
 def get_german_load_forecast(
     delivery_date: Annotated[str, "Delivery date in YYYY-MM-DD format"],
+    market_area: Annotated[str, "Bidding zone, e.g. 'DE-LU'"] = "DE-LU",
     resolution: Annotated[str, "Resolution: 'hour' or 'quarterhour'"] = "hour",
 ) -> str:
     """Fetch German load forecast from SMARD."""
+    if market_area.upper() != "DE-LU":
+        logger.warning(f"SMARD load forecast client only supports DE-LU market area. Requested: {market_area}")
+        return f"# No load forecast data available for {market_area} on {delivery_date} (SMARD supports DE-LU only)"
+
     def fetch():
         filter_id = FILTER_IDS.get("forecast_load")
         if filter_id is None:
-            logger.warning("Filter ID for load forecast not found")
             return pd.DataFrame()
 
         df = _fetch_smard_series(filter_id, resolution, delivery_date)
         if df.empty:
-            logger.warning(f"No load forecast data fetched for Germany on {delivery_date}")
             return pd.DataFrame()
 
         df = df.rename(columns={"value": "Load Forecast MW"})
@@ -424,13 +456,13 @@ def get_german_load_forecast(
 
         return df
 
-    df = _load_or_fetch("smard", f"forecast_load_{resolution}", "DE-LU", delivery_date, fetch)
+    df = _load_or_fetch("smard", f"forecast_load_{resolution}", market_area.upper(), delivery_date, fetch)
 
     if df is None or df.empty:
-        logger.warning(f"No German load forecast data available for {delivery_date}")
-        return f"# No German load forecast data for {delivery_date}"
+        return f"# No {market_area.upper()} load forecast data for {delivery_date}"
 
-    header = f"# German Load Forecast on {delivery_date} ({resolution})\n"
+    df = _format_index(df.copy())
+    header = f"# {market_area.upper()} Load Forecast on {delivery_date} ({resolution})\n"
     header += "# Source: SMARD (Bundesnetzagentur)\n"
     header += "# Unit: MW\n\n"
 
@@ -439,7 +471,14 @@ def get_german_load_forecast(
 
 if __name__ == "__main__":
     import sys
-    date = sys.argv[1] if len(sys.argv) > 1 else "2026-05-01"
+    date = sys.argv[1] if len(sys.argv) > 1 else "2026-04-28"
+
+    try:
+        deleted_count = cache_layer.clear_cache(source="smard")
+        print(f"Deleted {deleted_count} parquet files from the cache.")
+    except Exception as e:
+        logger.warning(f"Error clearing cache: {e}")
+        pass
 
     print("\n=== get_german_generation ===")
     print(get_german_generation(date, resolution="hour"))
@@ -460,227 +499,228 @@ if __name__ == "__main__":
     print("\n=== get_german_load_forecast ===")
     print(get_german_load_forecast(date, resolution="hour"))
 
+
 """
 Reference output
 === get_german_generation ===
 Failed to fetch SMARD filter 1224: 404 Client Error: Not Found for url: https://www.smard.de/app/chart_data/1224/DE/1224_DE_hour_1777240800000.json
-# German Generation by Type on 2026-05-01 (hour)
+# German Generation by Type on 2026-04-28 (hour)
 # Source: SMARD (Bundesnetzagentur)
 # Unit: MW
 
-CET,Total,Wind Onshore,Wind Offshore,Solar,Lignite,Hard Coal,Gas,Pumped Storage,Hydro,Biomass,Other
-2026-05-01 00:00:00+02:00,42780.84,14686.82,5063.76,0.0,5101.39,1666.0,4204.22,2313.69,1339.39,4130.91,1822.19
-2026-05-01 01:00:00+02:00,40832.82,14142.98,4978.31,0.0,4638.71,1642.62,3918.82,1708.14,1326.17,4082.65,1808.27
-2026-05-01 02:00:00+02:00,39261.01,13490.25,4167.01,0.0,4536.85,1637.41,3919.47,917.8,1300.59,4068.31,1808.34
-2026-05-01 03:00:00+02:00,38713.13,12810.96,3511.52,0.0,4582.56,1636.92,3879.52,1881.25,1283.89,4067.04,1803.15
-2026-05-01 04:00:00+02:00,38725.42,12204.6,3130.7,0.0,4620.36,1630.67,3978.6,1281.37,1259.85,4115.12,1806.87
-2026-05-01 05:00:00+02:00,38622.22,11675.68,2819.9,32.33,4678.7,1627.71,3834.14,849.52,1219.98,4174.88,1802.86
-2026-05-01 06:00:00+02:00,31886.75,11516.62,2754.35,2222.46,4654.35,1481.81,3249.28,1931.21,1216.44,4338.85,1810.33
-2026-05-01 07:00:00+02:00,37447.25,10558.44,2700.88,10337.67,3904.92,938.01,2830.68,891.89,1221.6,4445.83,1811.67
-2026-05-01 08:00:00+02:00,36672.79,7580.1,2859.15,23964.87,2241.2,707.47,1848.74,29.25,1240.15,4421.32,1778.96
-2026-05-01 09:00:00+02:00,0.0,5223.56,2208.72,35966.41,2018.37,525.2,1491.69,7.09,1326.54,4296.45,1550.42
-2026-05-01 10:00:00+02:00,0.0,3810.31,999.19,43013.37,1915.79,397.16,1471.03,6.0,1147.74,4169.02,1481.51
-2026-05-01 11:00:00+02:00,0.0,2517.66,397.14,46058.76,1838.51,385.35,1411.51,6.61,1112.14,4091.91,1429.14
-2026-05-01 12:00:00+02:00,0.0,1512.11,181.16,45206.36,1846.37,380.57,1412.72,78.75,1116.54,3986.95,1435.26
-2026-05-01 13:00:00+02:00,0.0,1489.27,166.33,44298.15,1839.99,380.27,1415.73,75.17,1106.24,3952.53,1430.39
-2026-05-01 14:00:00+02:00,0.0,1595.33,360.2,42441.48,1835.52,374.73,1419.85,41.22,1085.21,3949.83,1414.29
-2026-05-01 15:00:00+02:00,0.0,2452.85,534.92,40214.42,1858.85,373.4,1422.85,20.05,1097.25,3957.95,1436.98
-2026-05-01 16:00:00+02:00,0.0,3950.41,1304.69,35719.43,2017.72,381.88,1423.92,68.21,1102.32,4029.5,1460.43
-2026-05-01 17:00:00+02:00,0.0,6167.53,3199.22,28271.63,2057.22,411.91,1459.69,70.38,1328.03,4161.03,1471.55
-2026-05-01 18:00:00+02:00,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-2026-05-01 19:00:00+02:00,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-2026-05-01 20:00:00+02:00,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-2026-05-01 21:00:00+02:00,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-2026-05-01 22:00:00+02:00,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-2026-05-01 23:00:00+02:00,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+Hour,Total,Wind Onshore,Wind Offshore,Solar,Lignite,Hard Coal,Gas,Pumped Storage,Hydro,Biomass,Other
+00:00,43650.37,15770.97,2344.41,0.0,7635.19,4003.27,5963.71,517.53,1356.7,4186.96,1871.63
+01:00,43537.74,16012.09,2126.1,0.0,7640.42,3968.5,5804.67,641.11,1337.11,4146.37,1861.37
+02:00,42759.51,15577.76,1917.42,0.0,7764.59,3871.05,5777.56,572.26,1326.09,4128.83,1823.95
+03:00,42612.42,15323.79,1678.29,0.0,7935.84,3871.57,5883.08,664.6,1309.66,4120.14,1825.45
+04:00,43172.35,15597.73,1706.6,0.0,8083.3,3870.3,6162.75,461.03,1299.04,4145.66,1845.94
+05:00,45452.55,16207.26,2293.24,16.07,8222.99,3861.93,6305.59,1142.01,1303.84,4237.15,1862.47
+06:00,49074.98,16551.72,2859.35,1680.36,8040.83,3894.56,6367.37,2048.64,1352.81,4414.77,1864.57
+07:00,52845.35,13845.56,2594.85,8345.49,7554.47,3884.55,5889.42,2967.22,1379.46,4499.45,1884.88
+08:00,55431.05,9049.73,2086.46,19783.22,6783.66,3245.9,4656.55,2060.2,1352.03,4483.53,1929.77
+09:00,59425.2,6663.03,1934.99,33204.97,4409.91,2038.4,3014.08,451.26,1378.19,4407.9,1922.47
+10:00,65926.22,6401.55,1906.49,43190.32,3386.94,1394.46,2143.15,70.63,1346.23,4288.72,1797.73
+11:00,70896.26,7577.58,1126.6,48275.64,3215.2,1197.4,2025.69,145.9,1363.68,4170.1,1798.47
+12:00,71435.96,8390.82,663.72,48890.47,3206.46,1157.34,2008.95,69.41,1182.6,4058.62,1807.57
+13:00,71272.94,8836.52,429.27,48709.0,3192.67,1079.71,2004.19,32.35,1173.32,4030.73,1785.18
+14:00,69327.94,8924.18,520.52,46482.75,3306.6,1068.81,2005.04,54.54,1150.51,4041.69,1773.3
+15:00,68209.74,11607.01,775.22,42237.23,3404.79,1116.27,2042.27,37.62,1140.32,4076.71,1772.3
+16:00,64516.19,14819.56,1010.76,34612.5,3455.91,1173.43,2141.94,90.6,1318.27,4117.6,1775.62
+17:00,61771.25,19071.93,2485.44,24973.09,3569.73,1535.38,2665.94,66.23,1315.15,4274.28,1814.08
+18:00,57867.54,21541.21,3320.67,12741.32,5657.98,2587.89,3805.5,491.51,1354.39,4480.78,1886.29
+19:00,55152.13,21240.43,3729.69,4007.52,6675.7,3294.97,4913.76,3467.98,1342.72,4582.34,1897.02
+20:00,53280.06,21235.8,3730.0,342.14,6350.25,3363.72,5138.99,5231.78,1368.47,4608.94,1909.97
+21:00,54335.35,23660.34,3820.41,1.79,6777.43,3617.8,5281.08,3349.22,1370.13,4551.88,1905.27
+22:00,53018.61,23835.27,3593.57,0.43,6800.55,3761.99,5139.5,2213.77,1333.32,4434.07,1906.14
+23:00,50092.68,23698.75,3036.29,0.23,6796.61,3795.96,4758.17,489.04,1301.56,4321.56,1894.51
 
 
 === get_german_residual_load ===
-# German Residual Load on 2026-05-01 (hour)
+# German Residual Load on 2026-04-28 (hour)
 # Source: SMARD (Bundesnetzagentur)
-# Unit: MW (Load - Wind - Solar)
+# Unit: MW
 
-CET,Residual Load MW
-2026-05-01 00:00:00+02:00,23030.27
-2026-05-01 01:00:00+02:00,21711.53
-2026-05-01 02:00:00+02:00,21603.75
-2026-05-01 03:00:00+02:00,22390.65
-2026-05-01 04:00:00+02:00,23390.12
-2026-05-01 05:00:00+02:00,24094.31
-2026-05-01 06:00:00+02:00,15393.32
-2026-05-01 07:00:00+02:00,13850.27
-2026-05-01 08:00:00+02:00,2268.68
-2026-05-01 09:00:00+02:00,
-2026-05-01 10:00:00+02:00,
-2026-05-01 11:00:00+02:00,
-2026-05-01 12:00:00+02:00,
-2026-05-01 13:00:00+02:00,
-2026-05-01 14:00:00+02:00,
-2026-05-01 15:00:00+02:00,
-2026-05-01 16:00:00+02:00,
-2026-05-01 17:00:00+02:00,
-2026-05-01 18:00:00+02:00,
-2026-05-01 19:00:00+02:00,
-2026-05-01 20:00:00+02:00,
-2026-05-01 21:00:00+02:00,
-2026-05-01 22:00:00+02:00,
-2026-05-01 23:00:00+02:00,
+Hour,Residual Load MW
+00:00,26523.46
+01:00,24721.39
+02:00,24986.16
+03:00,25553.62
+04:00,26718.0
+05:00,29422.69
+06:00,33633.23
+07:00,33653.46
+08:00,29443.52
+09:00,17926.88
+10:00,8414.22
+11:00,1261.08
+12:00,-1127.38
+13:00,-2764.79
+14:00,-2227.21
+15:00,-1807.35
+16:00,1863.9
+17:00,7013.27
+18:00,18097.43
+19:00,28475.15
+20:00,30380.28
+21:00,27591.28
+22:00,24240.93
+23:00,21787.64
 
 
 === get_german_total_load ===
-# German Total Load on 2026-05-01 (hour)
+# German Total Load on 2026-04-28 (hour)
 # Source: SMARD (Bundesnetzagentur)
 # Unit: MW
 
-CET,Total Load MW
-2026-05-01 00:00:00+02:00,42780.84
-2026-05-01 01:00:00+02:00,40832.82
-2026-05-01 02:00:00+02:00,39261.01
-2026-05-01 03:00:00+02:00,38713.13
-2026-05-01 04:00:00+02:00,38725.42
-2026-05-01 05:00:00+02:00,38622.22
-2026-05-01 06:00:00+02:00,31886.75
-2026-05-01 07:00:00+02:00,37447.25
-2026-05-01 08:00:00+02:00,36672.79
-2026-05-01 09:00:00+02:00,
-2026-05-01 10:00:00+02:00,
-2026-05-01 11:00:00+02:00,
-2026-05-01 12:00:00+02:00,
-2026-05-01 13:00:00+02:00,
-2026-05-01 14:00:00+02:00,
-2026-05-01 15:00:00+02:00,
-2026-05-01 16:00:00+02:00,
-2026-05-01 17:00:00+02:00,
-2026-05-01 18:00:00+02:00,
-2026-05-01 19:00:00+02:00,
-2026-05-01 20:00:00+02:00,
-2026-05-01 21:00:00+02:00,
-2026-05-01 22:00:00+02:00,
-2026-05-01 23:00:00+02:00,
+Hour,Total Load MW
+00:00,44638.85
+01:00,42859.58
+02:00,42481.34
+03:00,42555.71
+04:00,44022.33
+05:00,47939.26
+06:00,54724.66
+07:00,58439.36
+08:00,60362.93
+09:00,59729.87
+10:00,59912.58
+11:00,58240.9
+12:00,56817.62
+13:00,55210.0
+14:00,53700.24
+15:00,52812.11
+16:00,52306.72
+17:00,53543.73
+18:00,55700.63
+19:00,57452.8
+20:00,55688.22
+21:00,55073.82
+22:00,51670.2
+23:00,48522.91
 
 
 === get_smard_prices ===
-# Day-Ahead Prices for DE-LU on 2026-05-01 (hour)
+# Day-Ahead Prices for DE-LU on 2026-04-28 (hour)
 # Source: SMARD (Bundesnetzagentur)
 # Unit: EUR/MWh
 
-CET,Price EUR/MWh
-2026-05-01 00:00:00+02:00,107.23
-2026-05-01 01:00:00+02:00,103.09
-2026-05-01 02:00:00+02:00,101.39
-2026-05-01 03:00:00+02:00,99.25
-2026-05-01 04:00:00+02:00,97.98
-2026-05-01 05:00:00+02:00,97.5
-2026-05-01 06:00:00+02:00,103.77
-2026-05-01 07:00:00+02:00,80.34
-2026-05-01 08:00:00+02:00,35.33
-2026-05-01 09:00:00+02:00,-0.03
-2026-05-01 10:00:00+02:00,-21.18
-2026-05-01 11:00:00+02:00,-108.62
-2026-05-01 12:00:00+02:00,-318.58
-2026-05-01 13:00:00+02:00,-499.0
-2026-05-01 14:00:00+02:00,-474.97
-2026-05-01 15:00:00+02:00,-205.88
-2026-05-01 16:00:00+02:00,-26.25
-2026-05-01 17:00:00+02:00,5.56
-2026-05-01 18:00:00+02:00,92.53
-2026-05-01 19:00:00+02:00,154.19
-2026-05-01 20:00:00+02:00,173.33
-2026-05-01 21:00:00+02:00,142.95
-2026-05-01 22:00:00+02:00,113.22
-2026-05-01 23:00:00+02:00,96.98
+Hour,Price EUR/MWh
+00:00,112.66
+01:00,106.9
+02:00,102.98
+03:00,102.83
+04:00,105.28
+05:00,111.84
+06:00,122.1
+07:00,121.43
+08:00,112.32
+09:00,79.78
+10:00,21.82
+11:00,-1.09
+12:00,-14.04
+13:00,-29.0
+14:00,-29.01
+15:00,-17.33
+16:00,-4.66
+17:00,33.32
+18:00,90.1
+19:00,117.4
+20:00,120.97
+21:00,115.83
+22:00,111.3
+23:00,101.77
 
-# Day-Ahead Prices for CZ on 2026-05-01 (hour)
+# Day-Ahead Prices for CZ on 2026-04-28 (hour)
 # Source: SMARD (Bundesnetzagentur)
 # Unit: EUR/MWh
 
-CET,Price EUR/MWh
-2026-05-01 00:00:00+02:00,111.53
-2026-05-01 01:00:00+02:00,107.5
-2026-05-01 02:00:00+02:00,106.64
-2026-05-01 03:00:00+02:00,104.58
-2026-05-01 04:00:00+02:00,103.47
-2026-05-01 05:00:00+02:00,102.38
-2026-05-01 06:00:00+02:00,95.16
-2026-05-01 07:00:00+02:00,85.06
-2026-05-01 08:00:00+02:00,36.48
-2026-05-01 09:00:00+02:00,-0.04
-2026-05-01 10:00:00+02:00,-21.99
-2026-05-01 11:00:00+02:00,-112.83
-2026-05-01 12:00:00+02:00,-326.57
-2026-05-01 13:00:00+02:00,-500.0
-2026-05-01 14:00:00+02:00,-479.1
-2026-05-01 15:00:00+02:00,-214.33
-2026-05-01 16:00:00+02:00,-27.44
-2026-05-01 17:00:00+02:00,2.91
-2026-05-01 18:00:00+02:00,93.97
-2026-05-01 19:00:00+02:00,139.7
-2026-05-01 20:00:00+02:00,162.76
-2026-05-01 21:00:00+02:00,137.38
-2026-05-01 22:00:00+02:00,119.64
-2026-05-01 23:00:00+02:00,100.82
+Hour,Price EUR/MWh
+00:00,116.03
+01:00,111.45
+02:00,107.98
+03:00,108.07
+04:00,110.61
+05:00,117.18
+06:00,127.9
+07:00,126.19
+08:00,114.61
+09:00,77.9
+10:00,29.58
+11:00,-0.04
+12:00,-3.8
+13:00,-14.2
+14:00,-11.24
+15:00,8.36
+16:00,42.17
+17:00,60.69
+18:00,96.2
+19:00,123.48
+20:00,140.27
+21:00,121.49
+22:00,115.8
+23:00,106.41
 
 
 === get_german_generation_forecast ===
-# German Generation Forecast on 2026-05-01 (hour)
+# German Generation Forecast on 2026-04-28 (hour)
 # Source: SMARD (Bundesnetzagentur)
 # Unit: MW
 
-CET,Forecast Total,Forecast Wind & Solar
-2026-05-01 00:00:00+02:00,38496.74,3265.94
-2026-05-01 01:00:00+02:00,36119.76,3094.99
-2026-05-01 02:00:00+02:00,34683.31,2807.16
-2026-05-01 03:00:00+02:00,33693.62,2482.4
-2026-05-01 04:00:00+02:00,33466.33,2206.01
-2026-05-01 05:00:00+02:00,33585.67,2074.93
-2026-05-01 06:00:00+02:00,35602.85,2146.17
-2026-05-01 07:00:00+02:00,40933.04,2334.92
-2026-05-01 08:00:00+02:00,48583.93,2420.15
-2026-05-01 09:00:00+02:00,56654.16,988.51
-2026-05-01 10:00:00+02:00,60862.33,1024.58
-2026-05-01 11:00:00+02:00,64089.63,979.79
-2026-05-01 12:00:00+02:00,65713.52,938.74
-2026-05-01 13:00:00+02:00,64547.79,906.38
-2026-05-01 14:00:00+02:00,61749.11,908.7
-2026-05-01 15:00:00+02:00,58246.1,954.28
-2026-05-01 16:00:00+02:00,54491.97,1039.07
-2026-05-01 17:00:00+02:00,51642.41,2411.56
-2026-05-01 18:00:00+02:00,45184.31,2675.21
-2026-05-01 19:00:00+02:00,41560.74,2994.27
-2026-05-01 20:00:00+02:00,40623.59,3317.26
-2026-05-01 21:00:00+02:00,43197.37,3622.72
-2026-05-01 22:00:00+02:00,44462.0,3819.01
-2026-05-01 23:00:00+02:00,44053.93,3861.72
+Hour,Forecast Total,Forecast Wind Onshore,Forecast Wind Offshore,Forecast Solar,Forecast Combined Wind & Solar
+00:00,41354.96,13995.89,1667.17,0.0,15663.07
+01:00,40074.06,14328.72,1743.35,0.0,16072.07
+02:00,39332.94,14484.91,1704.37,0.0,16189.28
+03:00,39473.01,14504.25,1625.5,0.0,16129.75
+04:00,39866.06,14597.78,1630.35,0.0,16228.14
+05:00,41434.48,14823.32,1782.01,31.04,16636.37
+06:00,45610.18,15177.46,1970.95,1552.47,18700.88
+07:00,51736.26,14315.76,2063.44,7510.28,23889.48
+08:00,55684.21,10899.03,1983.53,17728.81,30611.37
+09:00,59431.01,8388.34,1973.77,29235.99,39598.1
+10:00,66842.2,8375.32,1897.61,38994.84,49267.77
+11:00,73233.79,8813.78,716.84,45088.87,54619.49
+12:00,74672.58,9551.2,647.22,47927.78,58126.2
+13:00,74324.05,10334.25,598.29,48476.94,59409.48
+14:00,71400.29,11264.08,603.59,46383.79,58251.46
+15:00,68814.74,12570.78,655.09,41738.7,54964.57
+16:00,65048.94,14538.18,838.22,34743.51,50119.91
+17:00,61786.49,16883.61,2205.85,24829.72,43919.17
+18:00,57309.71,18221.82,2854.2,13031.17,34107.19
+19:00,52636.6,18894.72,3532.24,4085.04,26512.01
+20:00,51504.47,20185.61,3804.43,409.72,24399.75
+21:00,51694.12,21915.63,3706.9,0.0,25622.53
+22:00,50222.63,22033.6,3377.99,0.0,25411.59
+23:00,47984.28,21416.9,2949.27,0.0,24366.17
 
 
 === get_german_load_forecast ===
-# German Load Forecast on 2026-05-01 (hour)
+# German Load Forecast on 2026-04-28 (hour)
 # Source: SMARD (Bundesnetzagentur)
 # Unit: MW
 
-CET,Load Forecast MW
-2026-05-01 00:00:00+02:00,13886.71
-2026-05-01 01:00:00+02:00,13098.44
-2026-05-01 02:00:00+02:00,12222.88
-2026-05-01 03:00:00+02:00,11568.51
-2026-05-01 04:00:00+02:00,11199.47
-2026-05-01 05:00:00+02:00,11044.54
-2026-05-01 06:00:00+02:00,11041.88
-2026-05-01 07:00:00+02:00,10511.12
-2026-05-01 08:00:00+02:00,8274.09
-2026-05-01 09:00:00+02:00,6017.1
-2026-05-01 10:00:00+02:00,5510.01
-2026-05-01 11:00:00+02:00,5212.44
-2026-05-01 12:00:00+02:00,4534.83
-2026-05-01 13:00:00+02:00,4114.46
-2026-05-01 14:00:00+02:00,4175.42
-2026-05-01 15:00:00+02:00,4611.54
-2026-05-01 16:00:00+02:00,5279.0
-2026-05-01 17:00:00+02:00,6066.1
-2026-05-01 18:00:00+02:00,6679.03
-2026-05-01 19:00:00+02:00,7321.53
-2026-05-01 20:00:00+02:00,9453.48
-2026-05-01 21:00:00+02:00,12671.59
-2026-05-01 22:00:00+02:00,15160.08
-2026-05-01 23:00:00+02:00,16948.19
+Hour,Load Forecast MW
+00:00,46733.09
+01:00,45201.84
+02:00,44720.54
+03:00,44963.49
+04:00,45946.88
+05:00,49067.28
+06:00,54223.5
+07:00,58587.63
+08:00,61394.69
+09:00,62743.04
+10:00,62997.79
+11:00,62753.25
+12:00,61964.48
+13:00,60249.77
+14:00,58658.69
+15:00,57435.41
+16:00,57311.66
+17:00,57862.04
+18:00,58997.89
+19:00,59513.95
+20:00,58236.21
+21:00,55762.69
+22:00,52609.37
+23:00,49367.71
 """

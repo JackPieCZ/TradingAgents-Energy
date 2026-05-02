@@ -56,9 +56,9 @@ class TestEntsoeClient:
 
     def test_wind_solar_forecast(self):
         """Test fetching wind and solar forecasts."""
-        from tradingagents.dataflows.entsoe_client import query_wind_solar_forecast
+        from tradingagents.dataflows.entsoe_client import query_solar_forecast
 
-        result = query_wind_solar_forecast(TEST_DATE, TEST_MARKET_AREA)
+        result = query_solar_forecast(TEST_DATE, TEST_MARKET_AREA)
 
         assert "Wind" in result or "Solar" in result
         assert "MW" in result

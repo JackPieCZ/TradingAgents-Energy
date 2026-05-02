@@ -29,7 +29,7 @@ from .alpha_vantage_common import AlphaVantageRateLimitError
 from .entsoe_client import (
     query_day_ahead_prices as entsoe_da_prices,
     query_intraday_prices as entsoe_id_prices,
-    query_wind_solar_forecast as entsoe_wind_solar_forecast,
+    query_solar_forecast as entsoe_wind_solar_forecast,
     query_actual_generation as entsoe_actual_generation,
     query_generation_forecast_updates as entsoe_forecast_updates,
     query_load_forecast as entsoe_load_forecast,
@@ -207,7 +207,7 @@ VENDOR_METHODS = {
         "mock": mock_da_prices,
     },
     "get_intraday_prices": {
-        "entsoe": entsoe_id_prices,
+        # "entsoe": entsoe_id_prices,
         "ote": ote_id_prices,
         "mock": mock_id_prices,
     },
@@ -215,7 +215,7 @@ VENDOR_METHODS = {
         "ote": ote_id_prices_period,
     },
     "get_intraday_auction_prices": {
-        "entsoe": entsoe_id_prices,
+        # "entsoe": entsoe_id_prices,
         "ote": ote_ida_prices,
     },
 
