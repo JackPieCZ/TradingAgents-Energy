@@ -17,9 +17,20 @@ This is a fork of [TauricResearch/TradingAgents](https://github.com/TauricResear
 
 ## Current Status
 
-Phase 0 (research & context gathering) is **complete**. All 27 papers are in project knowledge. All data access is resolved. Implementation starts at **Phase 1: Data Layer**.
+Phase 0 (research & context gathering) is **complete**. All 27 papers are in project knowledge. All data access is resolved.
+Phase 1 (data layer) is **complete** — all 8 data modules implemented and tested with live APIs (ENTSO-E, OTE SOAP, SMARD, Open-Meteo). See `phase1_review_and_phase2_3_plan.md` for detailed review.
+Implementation continues at **Phase 2: Redefine Agent Roles and State Schema**.
+
+**Phase 1 known issues** (to fix at start of Phase 2):
+1. ENTSO-E CZ imbalance prices are in CZK not EUR — needs conversion (~÷25)
+2. SMARD filter_id 410 used for both generation_total and total_load — must compute total from parts
+3. SMARD load forecast filter (123) returns wrong data (~10x too low) — needs correct filter ID
+4. `_load_or_fetch` duplicated in all 4 clients — consolidate to `cache_layer.cached_fetch()`
+
+**Phase 1 key insight for prompt design**: CZ wind data from ENTSO-E is often zero (Czech installed wind ~350 MW = negligible). Weather & Forecast Analyst should focus on solar for CZ and wind+solar for DE-LU. Open-Meteo Historical Forecast API provides forecast revision deltas — the primary alpha signal per Kup22.
 
 See `STRATEGY.md` for the full 13-phase implementation plan with detailed instructions for each phase.
+See `phase1_review_and_phase2_3_plan.md` for detailed Phase 2-3 implementation instructions.
 
 ---
 
@@ -62,15 +73,16 @@ TradingAgents/
 │   │       ├── rating.py                 # Parse rating from text (adapt for PowerTradingAction)
 │   │       └── structured.py             # Provider-agnostic structured output binding (reuse as-is)
 │   ├── dataflows/
-│   │   ├── interface.py                  # Vendor routing layer → ADD energy vendor routing
+│   │   ├── interface.py                  # ✅ Vendor routing — energy categories added, 20+ methods
 │   │   ├── config.py                     # Runtime config access (reuse)
-│   │   ├── entsoe_client.py              # NEW: ENTSO-E Transparency Platform (via entsoe-py)
-│   │   ├── ote_client.py                 # NEW: OTE Czech SOAP API client
-│   │   ├── smard_client.py              # NEW: SMARD German data client
-│   │   ├── weather_client.py            # NEW: Open-Meteo weather/forecast client
-│   │   ├── energy_utils.py              # NEW: Shared energy data utilities
-│   │   ├── cache_layer.py               # NEW: Local caching for backtesting
-│   │   ├── y_finance.py                  # KEEP for now (will be unused once migration complete)
+│   │   ├── entsoe_client.py              # ✅ ENTSO-E — 10 methods (DA prices, forecasts, flows, outages, imbalance)
+│   │   ├── ote_client.py                 # ✅ OTE Czech SOAP — 5 methods (DA, intraday, IDA, imbalance)
+│   │   ├── smard_client.py               # ✅ SMARD German — 6 methods (generation, load, prices, forecasts)
+│   │   ├── weather_client.py             # ✅ Open-Meteo — 4 methods (wind, solar, weather, historical forecast)
+│   │   ├── energy_utils.py               # ✅ Shared utilities (timezone, bidding zones, DST, cache paths)
+│   │   ├── cache_layer.py                # ✅ Parquet-based local cache with clear_cache()
+│   │   ├── mock_energy.py                # ✅ Synthetic data generators (6 methods)
+│   │   ├── y_finance.py                  # KEEP for now (still used by stock path)
 │   │   └── ...                          # Other legacy modules
 │   ├── graph/
 │   │   ├── trading_graph.py              # → UPDATE: new analyst names, propagate() signature
@@ -180,8 +192,9 @@ All config in `default_config.py` as a flat dict. Key settings:
 - `retry-requests` — Retry logic
 
 **Still needed** (install when implementing):
-- `zeep` — SOAP client for OTE API (or use raw `requests` with XML)
 - Additional packages as phases require them
+
+**Not needed**: `zeep` — OTE client uses raw SOAP XML via `requests` instead (lighter dependency).
 
 **epftoolbox**: Cloned to `epftoolbox-master/` but NOT pip-installable (requires Python ≤3.13, env has 3.13.13). Use as reference code only — import individual modules by path if needed.
 

@@ -64,15 +64,25 @@ See `complete_report.md` for the full output structure of the original TradingAg
 
 ---
 
-## Phase 1: Data Layer — Replace Stock Data with Energy Market Data
+## Phase 1: Data Layer — Replace Stock Data with Energy Market Data ✅ COMPLETE
 
 **Goal**: Build a new `dataflows/` backend that provides energy market data through the same vendor-routing interface.
+
+**Status**: All 8 files implemented and tested with live API data (ENTSO-E, OTE, SMARD, Open-Meteo). See `phase1_review_and_phase2_3_plan.md` for detailed review.
+
+**Known issues to fix in Phase 2**:
+1. ENTSO-E CZ imbalance prices returned in CZK, labeled as EUR — needs CZK→EUR conversion
+2. SMARD filter_id 410 shared by generation_total and total_load — compute total from individual sources
+3. SMARD load forecast filter (123) returns wrong metric — needs correct filter ID or fallback to ENTSO-E
+4. `_load_or_fetch` duplicated across all 4 clients — consolidate to `cache_layer.cached_fetch()`
+
+**Key data insight for Phase 3 prompt design**: CZ wind data from ENTSO-E is often zero (Czech installed wind is ~350 MW — negligible). The Weather & Forecast Analyst should focus on solar for CZ and wind+solar for DE-LU. Open-Meteo Historical Forecast API provides forecast revision deltas critical for the Kup22 strategy.
 
 **References to read first**: Kup22 (Section 2: data description), Kie17 (Section 3: data), Kre21b (Section 2: data and variables), Hir22 (Section 3: data)
 
 **Data strategy**: Option A+C — ENTSO-E for fundamentals/forecasts/system data (DE + CZ), OTE SOAP for Czech intraday/DA/imbalance data, SMARD for German generation detail, Open-Meteo for weather. Zero-cost stack.
 
-### 1.1 Create new data vendor modules
+### 1.1 Create new data vendor modules ✅
 
 **Files to create**:
 - `tradingagents/dataflows/entsoe_client.py` — ENTSO-E Transparency Platform data (via `entsoe-py`). Key methods: `query_day_ahead_prices`, `query_wind_and_solar_forecast`, `query_intraday_wind_and_solar_forecast` (forecast deltas = alpha signal per Kup22), `query_generation`, `query_load`/`query_load_forecast`, `query_crossborder_flows`, `query_unavailability_of_generation_units`, `query_imbalance_prices`
@@ -84,7 +94,7 @@ See `complete_report.md` for the full output structure of the original TradingAg
 **Files to modify**:
 - `tradingagents/dataflows/interface.py` — Add new vendor entries and tool categories
 
-### 1.2 Define new tool categories and methods
+### 1.2 Define new tool categories and methods ✅
 
 Replace the stock-oriented categories in `interface.py` with energy-market categories:
 
@@ -115,7 +125,7 @@ TOOLS_CATEGORIES = {
 }
 ```
 
-### 1.3 Implement each data retrieval function
+### 1.3 Implement each data retrieval function ✅
 
 Each function should:
 - Accept `delivery_period` (ISO datetime of delivery start), `market_area` (e.g., "DE-LU", "CZ"), and relevant parameters
@@ -137,14 +147,14 @@ Each function should:
 
 **Tip for AI agents**: The `entsoe-py` library wraps the ENTSO-E API nicely and is already installed. For weather, `openmeteo-requests` is installed with caching. For OTE Czech data, use the SOAP API directly — the WSDL at `http://www.ote-cr.cz/services/PublicDataService/wsdl` defines all available methods. Use `zeep` (install it) or raw XML POST requests. The OTE manual (`uzivatelskymanual_webove_sluzby_ote_g.pdf`) has full XML request/response examples for every service. For SMARD, it's simple REST GETs — check the `de-smard` package or build a thin client. You'll need to map weather station locations to TSO areas for aggregation. Check `Kup22` Section 3 for exactly which renewable forecast update variables they use.
 
-### 1.4 Implement a data caching and fallback layer
+### 1.4 Implement a data caching and fallback layer ✅
 
 Since we have free access to all primary data sources (ENTSO-E, OTE, SMARD, Open-Meteo), create:
 - `tradingagents/dataflows/cache_layer.py` — SQLite or parquet-based local cache to avoid re-fetching during backtesting. Key: cache by (source, query_type, market_area, date_range) tuple.
 - `tradingagents/dataflows/mock_energy.py` — generates realistic synthetic energy data for unit testing and development when API access is unavailable (e.g., sandbox without network). Calibrate from cached real data.
 - Include realistic features: negative prices, spikes, seasonal patterns, weekend effects, delivery-period autocorrelation
 
-### 1.5 Update default_config.py
+### 1.5 Update default_config.py ✅
 
 ```python
 # Add to DEFAULT_CONFIG:
