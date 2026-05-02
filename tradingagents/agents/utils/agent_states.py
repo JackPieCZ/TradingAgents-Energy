@@ -1,5 +1,5 @@
 from typing import Annotated
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, NotRequired
 from langgraph.graph import MessagesState
 
 
@@ -71,3 +71,10 @@ class AgentState(MessagesState):
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
     past_context: Annotated[str, "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)"]
+
+    # --- NEW: Power-specific context ---
+    delivery_period: NotRequired[Annotated[str, "Delivery period start (ISO datetime), e.g. 2024-06-15T14:00"]]
+    market_area: NotRequired[Annotated[str, "Bidding zone (e.g. DE-LU, CZ)"]]
+    day_ahead_position: NotRequired[Annotated[str, "Current day-ahead position for this delivery period"]]
+    residual_position: NotRequired[Annotated[str, "Current residual (unhedged) position"]]
+    regime_indicator: NotRequired[Annotated[str, "Current market regime classification"]]
