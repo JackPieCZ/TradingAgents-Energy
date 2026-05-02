@@ -855,7 +855,7 @@ graph = TradingAgentsGraph(config)
 state, signal = graph.propagate(
     delivery_period="2026-05-01",
     trade_timestamp="2026-04-30T18:00",
-    market_area="DE-LU"
+    market_area="CZ"
 )
 
 # Verify all 4 reports are populated

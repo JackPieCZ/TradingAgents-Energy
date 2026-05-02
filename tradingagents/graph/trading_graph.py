@@ -1,5 +1,38 @@
 # TradingAgents/graph/trading_graph.py
 
+from .signal_processing import SignalProcessor
+from .reflection import Reflector
+from .propagation import Propagator
+from .setup import GraphSetup
+from .conditional_logic import ConditionalLogic
+from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
+from tradingagents.agents.utils.energy_news_tools import (
+    get_outage_notifications, get_actual_load
+)
+from tradingagents.agents.utils.weather_tools import (
+    get_wind_forecast, get_solar_forecast,
+    get_generation_forecast, get_forecast_updates,
+    get_weather_forecast, get_historical_forecast
+)
+from tradingagents.agents.utils.system_data_tools import (
+    get_residual_load, get_actual_generation,
+    get_load_forecast, get_cross_border_flows, get_outages
+)
+from tradingagents.agents.utils.energy_price_tools import (
+    get_day_ahead_prices, get_intraday_prices,
+    get_intraday_auction_prices, get_imbalance_data
+)
+from tradingagents.dataflows.config import set_config
+from tradingagents.agents.utils.agent_states import (
+    AgentState,
+    InvestDebateState,
+    RiskDebateState,
+)
+from tradingagents.agents.utils.memory import TradingMemoryLog
+from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.agents import *
+from tradingagents.llm_clients import create_llm_client
+from langgraph.prebuilt import ToolNode
 import logging
 import os
 from pathlib import Path
@@ -11,39 +44,19 @@ import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
-from langgraph.prebuilt import ToolNode
 
-from tradingagents.llm_clients import create_llm_client
-
-from tradingagents.agents import *
-from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.agents.utils.memory import TradingMemoryLog
-from tradingagents.agents.utils.agent_states import (
-    AgentState,
-    InvestDebateState,
-    RiskDebateState,
-)
-from tradingagents.dataflows.config import set_config
-
-# Import the new abstract tool methods from agent_utils
-from tradingagents.agents.utils.agent_utils import (
-    get_stock_data,
-    get_indicators,
-    get_fundamentals,
-    get_balance_sheet,
-    get_cashflow,
-    get_income_statement,
-    get_news,
-    get_insider_transactions,
-    get_global_news
-)
-
-from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
-from .conditional_logic import ConditionalLogic
-from .setup import GraphSetup
-from .propagation import Propagator
-from .reflection import Reflector
-from .signal_processing import SignalProcessor
+# # Import the new abstract tool methods from agent_utils
+# from tradingagents.agents.utils.agent_utils import (
+#     get_stock_data,
+#     get_indicators,
+#     get_fundamentals,
+#     get_balance_sheet,
+#     get_cashflow,
+#     get_income_statement,
+#     get_news,
+#     get_insider_transactions,
+#     get_global_news
+# )
 
 
 class TradingAgentsGraph:
@@ -97,7 +110,7 @@ class TradingAgentsGraph:
 
         self.deep_thinking_llm = deep_client.get_llm()
         self.quick_thinking_llm = quick_client.get_llm()
-        
+
         self.memory_log = TradingMemoryLog(self.config)
 
         # Create tool nodes
@@ -154,35 +167,43 @@ class TradingAgentsGraph:
     def _create_tool_nodes(self) -> Dict[str, ToolNode]:
         """Create tool nodes for different data sources using abstract methods."""
         return {
-            "market": ToolNode(
+            "market": ToolNode(  # Price & Technical Analyst
                 [
-                    # Core stock data tools
-                    get_stock_data,
-                    # Technical indicators
-                    get_indicators,
+                    # # Core stock data tools
+                    # get_stock_data,
+                    # # Technical indicators
+                    # get_indicators,
+                    get_day_ahead_prices, get_intraday_prices,
+                    get_intraday_auction_prices, get_imbalance_data
                 ]
             ),
-            "social": ToolNode(
+            "social": ToolNode(  # System State Analyst
                 [
-                    # News tools for social media analysis
-                    get_news,
+                    # # News tools for social media analysis
+                    # get_news,
+                    get_residual_load, get_actual_generation,
+                    get_load_forecast, get_cross_border_flows, get_outages
                 ]
             ),
-            "news": ToolNode(
+            "news": ToolNode(  # Energy News & Regulatory Analyst
                 [
-                    # News and insider information
-                    get_news,
-                    get_global_news,
-                    get_insider_transactions,
+                    # # News and insider information
+                    # get_news,
+                    # get_global_news,
+                    # get_insider_transactions,
+                    get_outage_notifications, get_actual_load
                 ]
             ),
-            "fundamentals": ToolNode(
+            "fundamentals": ToolNode(  # Weather & Forecast Analyst
                 [
-                    # Fundamental analysis tools
-                    get_fundamentals,
-                    get_balance_sheet,
-                    get_cashflow,
-                    get_income_statement,
+                    # # Fundamental analysis tools
+                    # get_fundamentals,
+                    # get_balance_sheet,
+                    # get_cashflow,
+                    # get_income_statement,
+                    get_wind_forecast, get_solar_forecast,
+                    get_generation_forecast, get_forecast_updates,
+                    get_weather_forecast, get_historical_forecast
                 ]
             ),
         }
@@ -261,38 +282,57 @@ class TradingAgentsGraph:
         if updates:
             self.memory_log.batch_update_with_outcomes(updates)
 
-    def propagate(self, company_name, trade_date):
-        """Run the trading agents graph for a company on a specific date.
+    # def propagate(self, company_name, trade_date):
+    def propagate(self, delivery_period: str, trade_timestamp: str, market_area: str = "CZ"):
+        """
+        Old version: Run the trading agents graph for a company on a specific date.
+        Current:
+        Run the agent pipeline for a specific delivery period and market area.
+
+        Args:
+            delivery_period: Delivery date in YYYY-MM-DD format (or ISO datetime for specific hour)
+            trade_timestamp: Current timestamp for the trading decision
+            market_area: Bidding zone (default "CZ")
+
+        Returns:
+            (final_state, signal): The complete agent state and extracted trading signal
 
         When ``checkpoint_enabled`` is set in config, the graph is recompiled
         with a per-ticker SqliteSaver so a crashed run can resume from the last
         successful node on a subsequent invocation with the same ticker+date.
         """
-        self.ticker = company_name
+        # self.ticker = company_name
+        self.ticker = delivery_period
 
         # Resolve any pending memory-log entries for this ticker before the pipeline runs.
-        self._resolve_pending_entries(company_name)
+        self._resolve_pending_entries(delivery_period)
+        # self._resolve_pending_entries(company_name)
 
         # Recompile with a checkpointer if the user opted in.
         if self.config.get("checkpoint_enabled"):
             self._checkpointer_ctx = get_checkpointer(
-                self.config["data_cache_dir"], company_name
+                self.config["data_cache_dir"], delivery_period
+                # self.config["data_cache_dir"], company_name
             )
             saver = self._checkpointer_ctx.__enter__()
             self.graph = self.workflow.compile(checkpointer=saver)
 
             step = checkpoint_step(
-                self.config["data_cache_dir"], company_name, str(trade_date)
+                self.config["data_cache_dir"], delivery_period, str(trade_timestamp)
+                # self.config["data_cache_dir"], company_name, str(trade_date)
             )
             if step is not None:
                 logger.info(
-                    "Resuming from step %d for %s on %s", step, company_name, trade_date
+                    # "Resuming from step %d for %s on %s", step, company_name, trade_date
+                    "Resuming from step %d for %s on %s", step, delivery_period, trade_timestamp
                 )
             else:
-                logger.info("Starting fresh for %s on %s", company_name, trade_date)
+                logger.info("Starting fresh for %s on %s", delivery_period, trade_timestamp)
+                # logger.info("Starting fresh for %s on %s", company_name, trade_date)
 
         try:
-            return self._run_graph(company_name, trade_date)
+            return self._run_graph(delivery_period, trade_timestamp)
+            # return self._run_graph(company_name, trade_date)
         finally:
             if self._checkpointer_ctx is not None:
                 self._checkpointer_ctx.__exit__(None, None, None)
@@ -303,9 +343,13 @@ class TradingAgentsGraph:
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM.
         past_context = self.memory_log.get_past_context(company_name)
+        # init_agent_state = self.propagator.create_initial_state(
+        #     company_name, trade_date, past_context=past_context
+        # )
         init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date, past_context=past_context
+            company_name, trade_date, past_context=past_context, market_area=self.config.get("market_area", "CZ")
         )
+
         args = self.propagator.get_graph_args()
 
         # Inject thread_id so same ticker+date resumes, different date starts fresh.
