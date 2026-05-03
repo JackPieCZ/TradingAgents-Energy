@@ -87,12 +87,19 @@ def create_trader(llm):
                     - "aggressive_market": Take available prices immediately. Use when signal is strong and urgent.
                     - "iceberg": Hide large orders by splitting into small visible portions. Use when > 10 MW.
                     - "twap": Spread execution evenly over the remaining trading window.
+                    - "ida_submission": Submit limit orders into the next upcoming IDA auction.
+                      IDAs freeze the continuous order book and clear at a uniform price across
+                      borders, providing massive liquidity. BEST for large positions (>10 MW)
+                      where continuous market impact would erode the edge. Check IDA timing
+                      relative to delivery — if the next IDA is before your delivery period,
+                      use it. If not, fall back to continuous execution.
                     5. URGENCY: low/medium/high based on time to delivery and signal decay rate
                     EXECUTION COST AWARENESS:
                     - Typical bid-ask spread: 0.5-3 EUR/MWh depending on liquidity and time to delivery
                     - Market impact: ~0.5 EUR/MWh per 5 MW in liquid hours, up to 3 EUR/MWh in thin hours
                     - Gate closure: 5-60 minutes before delivery (varies by product and exchange)
                     - Imbalance penalty: can be 50-500% of DA price in extreme cases
+                    - IDA auctions: zero market impact slippage (uniform price clearing), but you accept price uncertainty until the auction clears
                     IMPORTANT: NoTrade is a valid and valuable decision. If the expected edge after costs is < 1 EUR/MWh,
                     or if the regime is unclear, choosing NoTrade protects capital for better opportunities."""
                 ),

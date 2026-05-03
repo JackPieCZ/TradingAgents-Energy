@@ -74,8 +74,7 @@ def create_fundamentals_analyst(llm, tools):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
         current_date = state.get("trade_date", "")
-        instrument_context = (
-            f"You are analyzing the {market_area} electricity market for delivery on {delivery_period}. "
+        system_message = (
             f"Focus on wind and solar forecast revisions since the day-ahead auction. "
             f"For CZ: solar is the dominant variable force (~2.5 GW installed), wind is negligible (~350 MW). "
             f"For DE-LU: both wind (~65 GW onshore + 8 GW offshore) and solar (~80 GW) matter significantly."
@@ -91,6 +90,8 @@ MARKET CONTEXT:
 - Delivery period: {delivery_period}
 - Market area: {market_area}
 - Current time: {current_date}
+
+Few tips to guide your analysis: {system_message}
 
 ANALYTICAL WORKFLOW:
 1. Retrieve the TSO's official generation forecast (get_generation_forecast) to see what the
@@ -125,16 +126,15 @@ OUTPUT FORMAT: Your report must include:
 You have access to the following tools: {tool_names}."""
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "..." + WEATHER_FORECAST_ANALYST_PROMPT + "..."),
+            ("system", WEATHER_FORECAST_ANALYST_PROMPT),
             MessagesPlaceholder(variable_name="messages"),
         ])
         prompt = prompt.partial(
-            system_message=WEATHER_FORECAST_ANALYST_PROMPT,
+            system_message=system_message,
             tool_names=", ".join([tool.name for tool in tools]),
             current_date=current_date,
             delivery_period=delivery_period,
             market_area=market_area,
-            instrument_context=instrument_context,
         )
         chain = prompt | llm.bind_tools(tools)
         result = chain.invoke(state["messages"])

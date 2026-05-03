@@ -107,26 +107,24 @@ def create_news_analyst(llm, tools):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
         current_date = state.get("trade_date", "")
-        instrument_context = (
-            f"You are analyzing the {market_area} electricity market for delivery on {delivery_period}. "
-            f"Focus on REMIT Urgent Market Messages (UMMs) regarding the capacity and use of facilities, "
-            f"specifically planned maintenance and unplanned outages. Under REMIT, timely public disclosure "
-            f"of such inside information is mandatory. Trading based on non-public capacity information constitutes "
-            f"illegal insider trading. Your role is to assess how these public outage disclosures impact market "
-            f"fundamentals and supply constraints."
+        system_message = (
+            "Focus on REMIT Urgent Market Messages (UMMs) regarding the capacity and use of facilities, "
+            "specifically planned maintenance and unplanned outages. Under REMIT, timely public disclosure "
+            "of such inside information is mandatory. Trading based on non-public capacity information constitutes "
+            "illegal insider trading. Your role is to assess how these public outage disclosures impact market "
+            "fundamentals and supply constraints."
         )
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "..." + NEWS_REGULATORY_ANALYST_PROMPT + "..."),
+            ("system", NEWS_REGULATORY_ANALYST_PROMPT),
             MessagesPlaceholder(variable_name="messages"),
         ])
         prompt = prompt.partial(
-            system_message=NEWS_REGULATORY_ANALYST_PROMPT,
+            system_message=system_message,
             tool_names=", ".join([tool.name for tool in tools]),
             current_date=current_date,
             delivery_period=delivery_period,
             market_area=market_area,
-            instrument_context=instrument_context,
         )
         chain = prompt | llm.bind_tools(tools)
         result = chain.invoke(state["messages"])

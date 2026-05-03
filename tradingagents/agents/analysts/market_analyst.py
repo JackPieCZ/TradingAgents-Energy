@@ -17,6 +17,8 @@ MARKET CONTEXT:
 - Market area: {market_area}
 - Current time: {current_date}
 
+Few tips to guide your analysis: {system_message}
+
 ANALYTICAL WORKFLOW:
 1. Retrieve day-ahead prices (get_day_ahead_prices) — the price anchor
 2. Retrieve intraday continuous prices (get_intraday_prices) — current market pricing
@@ -39,9 +41,19 @@ KEY PRICE ANALYSIS:
   → Close to delivery: spreads tighten, prices more accurate, less opportunity
   →  Final 60 min: volatility typically spikes, distributions become heavy-tailed, but liquidity improves
 
-- IDA AUCTION SEQUENCE: IDA1 → IDA2 → IDA3 provide progressive price discovery
-  → Compare IDA prices with continuous trading to spot divergences
-  → IDA with lower volume = less liquid = prices less reliable
+- IDA AUCTION MECHANISM: Unlike the continuous order book, IDAs are discrete clearing events.
+  When an IDA triggers, the continuous order books are FROZEN. All bids and asks are aggregated
+  into a single intersection point, establishing a uniform clearing price across all participating
+  European borders for that delivery period.
+  → IDA 1: 15:00 CET on day-ahead (D-1)  Delivery scope: Covers all delivery periods of the delivery day D (00:00 – 24:00).
+    IDA 2: 22:00 CET on day-ahead (D-1)  Delivery scope: Covers all delivery periods of the delivery day D (00:00 – 24:00).
+    IDA 3: 10:00 CET on the delivery day (D) Delivery scope: Covers the remaining delivery periods of the delivery day D (12:00 – 24:00).
+  → Compare IDA clearing prices with continuous VWAP: large divergences signal that the
+    continuous market has not yet absorbed new information (forecast revisions, outages)
+  → IDAs provide MASSIVE LIQUIDITY INJECTIONS — they are the best venue for closing large
+    residual positions (10+ MW) without suffering severe market impact slippage
+  → If a major forecast revision drops between IDAs, the clearing price will jump; the
+    continuous market typically front-runs this but not fully
 
 - IMBALANCE EXPOSURE: The imbalance price is the "worst case" settlement
   → If imbalance price >> DA price: strong incentive to be balanced (conservative)
@@ -54,7 +66,7 @@ OUTPUT FORMAT:
 4. CROSS-PRODUCT CHECK: Do neighboring hours confirm or contradict the signal?
 5. EXECUTION CONTEXT: Liquidity, bid-ask proxy, time-to-delivery assessment and volatility expectations
 
-You have access to the following tools: {tool_names}."""
+You have access to the following tools: {tool_names}. Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read. {get_language_instruction()}"""
 
 
 def create_market_analyst_exchange(llm):
@@ -142,26 +154,24 @@ def create_market_analyst(llm, tools):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
         current_date = state.get("trade_date", "")
-        instrument_context = (
-            f"You are analyzing the {market_area} electricity market for delivery on {delivery_period}. "
-            f"Focus on the volume-weighted average prices (VWAP) and their deviations from the day-ahead anchor. "
-            f"Remember that intraday price changes exhibit strong autoregressive features and mean reversion. "
-            f"Volatility and heavy-tailed price distributions increase significantly as time-to-delivery decreases, "
-            f"especially in the last 60 minutes of trading. Neighboring contract prices "
-            f"also exert a strong gravitational pull on the current contract's price path."
+        system_message = (
+            "Focus on the volume-weighted average prices (VWAP) and their deviations from the day-ahead anchor. "
+            "Remember that intraday price changes exhibit strong autoregressive features and mean reversion. "
+            "Volatility and heavy-tailed price distributions increase significantly as time-to-delivery decreases, "
+            "especially in the last 60 minutes of trading. Neighboring contract prices "
+            "also exert a strong gravitational pull on the current contract's price path."
         )
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "..." + PRICE_TECHNICAL_ANALYST_PROMPT + "..."),
+            ("system", PRICE_TECHNICAL_ANALYST_PROMPT),
             MessagesPlaceholder(variable_name="messages"),
         ])
         prompt = prompt.partial(
-            system_message=PRICE_TECHNICAL_ANALYST_PROMPT,
+            system_message=system_message,
             tool_names=", ".join([tool.name for tool in tools]),
             current_date=current_date,
             delivery_period=delivery_period,
             market_area=market_area,
-            instrument_context=instrument_context,
         )
         chain = prompt | llm.bind_tools(tools)
         result = chain.invoke(state["messages"])

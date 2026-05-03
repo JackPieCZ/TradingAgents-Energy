@@ -35,6 +35,17 @@ MERIT ORDER & CONGESTION REASONING:
 - STEEP MERIT ORDER (High residual load): Marginal generator is expensive (peak gas, oil). Price very sensitive to ANY supply/demand change — outages matter most here.
 - CROSS-BORDER DECOUPLING: If cross-border flows are at maximum capacity, Flow Based Market Coupling (FBMC) constraints are active. The local market is decoupled, meaning it must absorb its own supply/demand shocks without neighbor assistance.
 
+IMBALANCE & SYSTEM TENSION:
+- IMBALANCE VOLUME interpretation: Positive imbalance volume generally means the system is LONG
+  (oversupplied — more generation than scheduled consumption). Negative means SHORT (undersupplied).
+  NOTE: Different TSOs may use different sign conventions; always cross-reference with the
+  residual load direction. A 400 MW positive imbalance volume is significant — roughly the output
+  of a mid-sized gas plant. Over 1000 MW indicates serious system stress.
+- When imbalance prices are delayed or unavailable (common for DE-LU), use residual load deviation
+  and cross-border flow saturation as proxies for system tension.
+- If the system is consistently short (negative imbalance), expect upward pressure on both
+  intraday and imbalance settlement prices.
+
 OUTPUT FORMAT:
 1. REGIME CLASSIFICATION: Normal/Stressed/Oversupplied/Volatile with supporting evidence
 2. KEY RISK FACTORS: List the top 3 system risks (outages, congestion, ramp constraints)
@@ -103,7 +114,7 @@ def create_social_media_analyst(llm, tools):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
         current_date = state.get("trade_date", "")
-        instrument_context = (
+        system_message = (
             f"You are evaluating the system state for the {market_area} electricity market, delivery on {delivery_period}. "
             f"Key framework elements to consider:\n"
             f"- Demand-Quote Regime: Compare expected demand to available day-ahead capacity. High quotes (>1.0 to 1.2) signal reliance on the intraday market to cover deficits.\n"
@@ -112,16 +123,14 @@ def create_social_media_analyst(llm, tools):
         )
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "..." + SYSTEM_STATE_ANALYST_PROMPT + "..."),
+            ("system", SYSTEM_STATE_ANALYST_PROMPT),
             MessagesPlaceholder(variable_name="messages"),
         ])
         prompt = prompt.partial(
-            system_message=SYSTEM_STATE_ANALYST_PROMPT,
             tool_names=", ".join([tool.name for tool in tools]),
             current_date=current_date,
             delivery_period=delivery_period,
             market_area=market_area,
-            instrument_context=instrument_context,
         )
         chain = prompt | llm.bind_tools(tools)
         result = chain.invoke(state["messages"])

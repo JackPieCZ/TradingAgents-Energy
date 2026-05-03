@@ -81,8 +81,10 @@ class Propagator:
             "investment_plan": "",
             "trader_investment_plan": "",
             "risk_debate_state": RiskDebateState(
-                history="", agg_history="", con_history="",
-                current_response="", judge_decision="", count=0
+                aggressive_history="", conservative_history="", neutral_history="",
+                history="", latest_speaker="",
+                current_aggressive_response="", current_conservative_response="",
+                current_neutral_response="", judge_decision="", count=0
             ),
             "final_trade_decision": "",
             "past_context": past_context,

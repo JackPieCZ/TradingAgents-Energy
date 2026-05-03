@@ -47,6 +47,7 @@ Use this information to deliver a compelling bull argument, refute the bear's co
 
     return bull_node
 
+
 def create_bull_researcher(llm):
     def bull_node(state) -> dict:
         investment_debate_state = state["investment_debate_state"]
@@ -66,16 +67,12 @@ electricity intraday trading desk.
 You are analyzing the {market_area} market for delivery period {delivery_period}.
 Given the analyst reports, argue for going LONG (buying power for this delivery period) if any of
 these conditions hold:
-1. FORECAST REVISION SIGNAL: Wind/solar forecast revised downward → less renewable supply →
-   prices should rise above day-ahead level. Look for asymmetric upside risk and high confidence in the forecast delta.
-2. SYSTEM STRESS: High residual load, tight conventional capacity, or significant outages →
-   upward price pressure and risk of spikes. 
-3. MEAN REVERSION & ARBITRAGE: Intraday prices have overcorrected downward relative to fundamentals →
-   buying opportunity.
-4. CROSS-BORDER SUPPORT & XBID: Neighboring zones have higher prices; interconnector flows in the XBID phase suggest
-   potential price convergence upward before local-only trading begins.
-5. FAVORABLE EXECUTION: The order book depth is sufficient to absorb the required MW volume 
-   without excessive market impact (slippage). Argue that the expected edge outweighs the bid-ask spread and transaction costs.
+1. FORECAST REVISION SIGNAL: Wind/solar forecast revised downward → less renewable supply → prices should rise above day-ahead level. Look for asymmetric upside risk and high confidence in the forecast delta.
+2. SYSTEM STRESS: High residual load, tight conventional capacity, or significant outages → upward price pressure and risk of spikes. 
+3. MEAN REVERSION & ARBITRAGE: Intraday prices have overcorrected downward relative to fundamentals → buying opportunity.
+4. CROSS-BORDER SUPPORT & XBID: Neighboring zones have higher prices; interconnector flows in the XBID phase suggest potential price convergence upward before local-only trading begins.
+5. IDA AUCTION OPPORTUNITY: If the next IDA auction is approaching and the continuous market hasn't fully priced in the forecast revision yet, submitting into the IDA provides a chance to establish a position at the clearing price without suffering market impact from continuous order book execution.
+6. FAVORABLE EXECUTION: The order book depth is sufficient to absorb the required MW volume without excessive market impact (slippage). Argue that the expected edge outweighs the bid-ask spread and transaction costs.
 Counter the Bear's arguments with evidence from the analyst reports. Be specific about MW magnitudes,
 EUR/MWh price levels, expected market impact, and reference the regime classification.
 You must evaluate the following analyst reports:
