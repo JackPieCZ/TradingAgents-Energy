@@ -400,7 +400,7 @@ instrument_context = (
 def create_weather_forecast_analyst(llm, tools):
     def weather_forecast_analyst_node(state):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
-        market_area = state.get("market_area", "DE-LU")
+        market_area = state.get("market_area", "CZ")
         current_date = state.get("trade_date", "")
 
         prompt = ChatPromptTemplate.from_messages([

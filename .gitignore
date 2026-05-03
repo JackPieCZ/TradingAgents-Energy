@@ -220,3 +220,5 @@ __marimo__/
 /epftoolbox-master
 .worktrees/
 *.sqlite
+/docs/superpowers
+session-ses_212b.md

@@ -10,6 +10,23 @@ from tradingagents.agents.utils.agent_states import AgentState
 from .conditional_logic import ConditionalLogic
 
 
+from tradingagents.agents.utils.energy_price_tools import (
+    get_day_ahead_prices, get_intraday_prices,
+    get_intraday_auction_prices, get_imbalance_data
+)
+from tradingagents.agents.utils.system_data_tools import (
+    get_residual_load, get_actual_generation,
+    get_load_forecast, get_cross_border_flows, get_outages
+)
+from tradingagents.agents.utils.weather_tools import (
+    get_wind_forecast, get_solar_forecast,
+    get_generation_forecast, get_forecast_updates,
+    get_weather_forecast, get_historical_forecast
+)
+from tradingagents.agents.utils.energy_news_tools import (
+    get_outage_notifications, get_actual_load
+)
+
 class GraphSetup:
     """Handles the setup and configuration of the agent graph."""
 
@@ -48,28 +65,40 @@ class GraphSetup:
 
         if "market" in selected_analysts:
             analyst_nodes["market"] = create_market_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm, [
+                    get_day_ahead_prices, get_intraday_prices,
+                    get_intraday_auction_prices, get_imbalance_data
+                ]
             )
             delete_nodes["market"] = create_msg_delete()
             tool_nodes["market"] = self.tool_nodes["market"]
 
         if "social" in selected_analysts:
             analyst_nodes["social"] = create_social_media_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm, [
+                    get_residual_load, get_actual_generation,
+                    get_load_forecast, get_cross_border_flows, get_outages
+                ]
             )
             delete_nodes["social"] = create_msg_delete()
             tool_nodes["social"] = self.tool_nodes["social"]
 
         if "news" in selected_analysts:
             analyst_nodes["news"] = create_news_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm, [
+                    get_outage_notifications, get_actual_load
+                ]
             )
             delete_nodes["news"] = create_msg_delete()
             tool_nodes["news"] = self.tool_nodes["news"]
 
         if "fundamentals" in selected_analysts:
             analyst_nodes["fundamentals"] = create_fundamentals_analyst(
-                self.quick_thinking_llm
+                self.quick_thinking_llm, [
+                    get_wind_forecast, get_solar_forecast,
+                    get_generation_forecast, get_forecast_updates,
+                    get_weather_forecast, get_historical_forecast
+                ]
             )
             delete_nodes["fundamentals"] = create_msg_delete()
             tool_nodes["fundamentals"] = self.tool_nodes["fundamentals"]

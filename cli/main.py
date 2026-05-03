@@ -61,15 +61,24 @@ class MessageBuffer:
     # Report section mapping: section -> (analyst_key for filtering, finalizing_agent)
     # analyst_key: which analyst selection controls this section (None = always included)
     # finalizing_agent: which agent must be "completed" for this report to count as done
+    # REPORT_SECTIONS = {
+    #     "market_report": ("market", "Market Analyst"),
+    #     "sentiment_report": ("social", "Social Analyst"),
+    #     "news_report": ("news", "News Analyst"),
+    #     "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
+    #     "investment_plan": (None, "Research Manager"),
+    #     "trader_investment_plan": (None, "Trader"),
+    #     "final_trade_decision": (None, "Portfolio Manager"),
+    # }
     REPORT_SECTIONS = {
-        "market_report": ("market", "Market Analyst"),
-        "sentiment_report": ("social", "Social Analyst"),
-        "news_report": ("news", "News Analyst"),
-        "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
-        "investment_plan": (None, "Research Manager"),
-        "trader_investment_plan": (None, "Trader"),
-        "final_trade_decision": (None, "Portfolio Manager"),
-    }
+    "market_report": ("market", "Price & Technical Analyst"),
+    "sentiment_report": ("social", "System State Analyst"),
+    "news_report": ("news", "Energy News & Regulatory Analyst"),
+    "fundamentals_report": ("fundamentals", "Weather & Forecast Analyst"),
+    "investment_plan": (None, "Research Manager"),
+    "trader_investment_plan": (None, "Trader"),
+    "final_trade_decision": (None, "Portfolio Manager"),
+}
 
     def __init__(self, max_length=100):
         self.messages = deque(maxlen=max_length)
@@ -169,11 +178,20 @@ class MessageBuffer:
                
         if latest_section and latest_content:
             # Format the current section for display
+            # section_titles = {
+            #     "market_report": "Market Analysis",
+            #     "sentiment_report": "Social Sentiment",
+            #     "news_report": "News Analysis",
+            #     "fundamentals_report": "Fundamentals Analysis",
+            #     "investment_plan": "Research Team Decision",
+            #     "trader_investment_plan": "Trading Team Plan",
+            #     "final_trade_decision": "Portfolio Management Decision",
+            # }
             section_titles = {
-                "market_report": "Market Analysis",
-                "sentiment_report": "Social Sentiment",
-                "news_report": "News Analysis",
-                "fundamentals_report": "Fundamentals Analysis",
+                "market_report": "Price & Technical Analysis",
+                "sentiment_report": "System State Analysis",
+                "news_report": "Energy News & Regulatory",
+                "fundamentals_report": "Weather & Forecast Analysis",
                 "investment_plan": "Research Team Decision",
                 "trader_investment_plan": "Trading Team Plan",
                 "final_trade_decision": "Portfolio Management Decision",

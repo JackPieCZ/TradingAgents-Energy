@@ -7,8 +7,57 @@ from tradingagents.agents.utils.agent_utils import (
 )
 from tradingagents.dataflows.config import get_config
 
+PRICE_TECHNICAL_ANALYST_PROMPT = """You are the Price & Technical Analyst for a European electricity intraday trading desk.
 
-def create_market_analyst(llm):
+YOUR ROLE: Analyze intraday price patterns, spreads vs day-ahead, mean-reversion signals,
+and cross-product pricing to identify trading opportunities.
+
+MARKET CONTEXT:
+- Delivery period: {delivery_period}
+- Market area: {market_area}
+- Current time: {current_date}
+
+ANALYTICAL WORKFLOW:
+1. Retrieve day-ahead prices (get_day_ahead_prices) — the price anchor
+2. Retrieve intraday continuous prices (get_intraday_prices) — current market pricing
+3. Retrieve IDA auction prices (get_intraday_auction_prices) — auction-based price discovery
+4. Retrieve imbalance data (get_imbalance_data) — penalty price for unhedged positions
+
+KEY PRICE ANALYSIS:
+- SPREAD TO DAY-AHEAD: intraday_price - day_ahead_price for each delivery hour
+  → Positive spread = intraday premium (market expects tighter supply than DA assumed)
+  → Negative spread = intraday discount (market expects more supply than DA assumed)
+  → Large spreads that have been widening suggest momentum; narrowing suggests mean reversion
+
+- MEAN REVERSION: Intraday power prices tend to mean-revert toward a fundamental level
+  → But reversion is CONDITIONAL on regime: in Stressed regime, trends persist longer
+  → Short-term: last 2-3 hours of intraday trading activity for the delivery period
+  → Compare with neighboring delivery hours for cross-product consistency
+
+- TIME-TO-DELIVERY EFFECT:
+  → Far from delivery: wider spreads, more volatile, information still arriving
+  → Close to delivery: spreads tighten, prices more accurate, less opportunity
+  →  Final 60 min: volatility typically spikes, distributions become heavy-tailed, but liquidity improves
+
+- IDA AUCTION SEQUENCE: IDA1 → IDA2 → IDA3 provide progressive price discovery
+  → Compare IDA prices with continuous trading to spot divergences
+  → IDA with lower volume = less liquid = prices less reliable
+
+- IMBALANCE EXPOSURE: The imbalance price is the "worst case" settlement
+  → If imbalance price >> DA price: strong incentive to be balanced (conservative)
+  → If imbalance price ≈ DA price: less penalty for carrying positions to delivery
+
+OUTPUT FORMAT:
+1. PRICE LEVEL: Current intraday price vs DA anchor for key delivery hours
+2. SPREAD ANALYSIS: Is the spread widening/narrowing/stable? Why?
+3. MEAN REVERSION SIGNAL: Is there a reversion opportunity and how strong?
+4. CROSS-PRODUCT CHECK: Do neighboring hours confirm or contradict the signal?
+5. EXECUTION CONTEXT: Liquidity, bid-ask proxy, time-to-delivery assessment and volatility expectations
+
+You have access to the following tools: {tool_names}."""
+
+
+def create_market_analyst_exchange(llm):
 
     def market_analyst_node(state):
         current_date = state["trade_date"]
@@ -85,4 +134,40 @@ Volume-Based Indicators:
             "market_report": report,
         }
 
+    return market_analyst_node
+
+
+def create_market_analyst(llm, tools):
+    def market_analyst_node(state):
+        delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
+        market_area = state.get("market_area", "CZ")
+        current_date = state.get("trade_date", "")
+        instrument_context = (
+            f"You are analyzing the {market_area} electricity market for delivery on {delivery_period}. "
+            f"Focus on the volume-weighted average prices (VWAP) and their deviations from the day-ahead anchor. "
+            f"Remember that intraday price changes exhibit strong autoregressive features and mean reversion. "
+            f"Volatility and heavy-tailed price distributions increase significantly as time-to-delivery decreases, "
+            f"especially in the last 60 minutes of trading. Neighboring contract prices "
+            f"also exert a strong gravitational pull on the current contract's price path."
+        )
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "..." + PRICE_TECHNICAL_ANALYST_PROMPT + "..."),
+            MessagesPlaceholder(variable_name="messages"),
+        ])
+        prompt = prompt.partial(
+            system_message=PRICE_TECHNICAL_ANALYST_PROMPT,
+            tool_names=", ".join([tool.name for tool in tools]),
+            current_date=current_date,
+            delivery_period=delivery_period,
+            market_area=market_area,
+            instrument_context=instrument_context,
+        )
+        chain = prompt | llm.bind_tools(tools)
+        result = chain.invoke(state["messages"])
+        report = result.content if len(result.tool_calls) == 0 else ""
+        return {
+            "messages": [result],
+            "market_report": report,  # Keep original field name
+        }
     return market_analyst_node
