@@ -51,6 +51,15 @@ class GoogleClient(BaseLLMClient):
         try:
             import google.auth
             import google.auth.exceptions
+            from pathlib import Path
+            
+            # Automatically pick up local secrets file if GOOGLE_APPLICATION_CREDENTIALS is not set
+            if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+                for local_adc in [Path(".secrets/application_default_credentials.json"), Path(".secrets/gcp_adc.json")]:
+                    if local_adc.exists():
+                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(local_adc.absolute())
+                        break
+
             credentials, adc_project = google.auth.default()
             llm_kwargs["credentials"] = credentials
             
