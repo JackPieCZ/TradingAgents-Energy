@@ -64,6 +64,8 @@ class Propagator:
             "market_area": market_area,
             "trade_date": trade_timestamp,
             "sender": "",
+            # Inter-analyst context (accumulated findings passed between analysts)
+            "analyst_context": "",
             # Reports initialized empty
             "market_report": "",
             "sentiment_report": "",

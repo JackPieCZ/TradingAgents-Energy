@@ -49,6 +49,10 @@ class AgentState(MessagesState):
 
     sender: Annotated[str, "Agent that sent this message"]
 
+    # Inter-analyst context: accumulates key findings so later analysts
+    # can see what earlier analysts discovered (without full message history).
+    analyst_context: Annotated[str, "Accumulated key findings from previous analysts"]
+
     # research step
     market_report: Annotated[str, "Report from Price & Technical Analyst"]
     sentiment_report: Annotated[str, "Report from System State Analyst"]

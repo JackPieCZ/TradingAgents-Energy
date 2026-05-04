@@ -44,14 +44,31 @@ def build_instrument_context(ticker: str) -> str:
 
 def create_msg_delete():
     def delete_messages(state):
-        """Clear messages and add placeholder for Anthropic compatibility"""
+        """Clear messages but inject accumulated analyst context for the next analyst.
+
+        After each analyst finishes, this node wipes the message history (to keep
+        token counts manageable) but injects a summary of all previous analysts'
+        findings into the placeholder message so the next analyst has cross-analyst
+        context.
+        """
         messages = state["messages"]
 
         # Remove all messages
         removal_operations = [RemoveMessage(id=m.id) for m in messages]
 
-        # Add a minimal placeholder message
-        placeholder = HumanMessage(content="Continue")
+        # Build context summary from previous analysts' findings
+        context = state.get("analyst_context", "")
+        if context:
+            placeholder_text = (
+                "Previous analysts have reported the following key findings:\n\n"
+                f"{context}\n\n"
+                "Use these findings as context for your own analysis. "
+                "Continue with your assigned tools."
+            )
+        else:
+            placeholder_text = "Continue"
+
+        placeholder = HumanMessage(content=placeholder_text)
 
         return {"messages": removal_operations + [placeholder]}
 

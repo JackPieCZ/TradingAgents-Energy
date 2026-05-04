@@ -149,8 +149,20 @@ def create_social_media_analyst(llm, tools):
         chain = prompt | llm.bind_tools(tools)
         result = chain.invoke({"messages": state["messages"]})
         report = result.content if len(result.tool_calls) == 0 else ""
+        # Append a brief summary to analyst_context for subsequent analysts.
+        # Only appends when report is non-empty (i.e., final invocation, not mid-tool-loop).
+        existing_context = state.get("analyst_context", "")
+        if report:
+            context_addition = (
+                "--- System State Analyst ---\n"
+                f"{report}\n"
+            )
+            new_context = existing_context + context_addition
+        else:
+            new_context = existing_context
         return {
             "messages": [result],
             "sentiment_report": report,
+            "analyst_context": new_context,
         }
     return social_media_analyst_node

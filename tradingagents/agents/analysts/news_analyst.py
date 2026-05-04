@@ -129,8 +129,20 @@ def create_news_analyst(llm, tools):
         chain = prompt | llm.bind_tools(tools)
         result = chain.invoke({"messages": state["messages"]})
         report = result.content if len(result.tool_calls) == 0 else ""
+        # Append a brief summary to analyst_context for subsequent analysts.
+        # Only appends when report is non-empty (i.e., final invocation, not mid-tool-loop).
+        existing_context = state.get("analyst_context", "")
+        if report:
+            context_addition = (
+                "--- Energy News & Regulatory Analyst ---\n"
+                f"{report}\n"
+            )
+            new_context = existing_context + context_addition
+        else:
+            new_context = existing_context
         return {
             "messages": [result],
             "news_report": report,  # Keep original field name
+            "analyst_context": new_context,
         }
     return news_analyst_node

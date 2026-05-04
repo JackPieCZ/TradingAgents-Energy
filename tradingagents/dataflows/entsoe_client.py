@@ -1,7 +1,7 @@
 """ENTSO-E Transparency Platform data client.
 
 Uses the entsoe-py library (already installed).
-API docs: https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html
+API docs: https://documenter.getpostman.com/view/7009892/2s93JtP3F6
 entsoe-py docs: https://github.com/EnergieID/entsoe-py
 
 Data available:
