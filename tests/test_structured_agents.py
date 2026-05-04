@@ -13,12 +13,12 @@ import pytest
 
 from tradingagents.agents.managers.research_manager import create_research_manager
 from tradingagents.agents.schemas import (
-    PortfolioRating,
+    PowerTradingAction,
     ResearchPlan,
-    TraderAction,
-    TraderProposal,
+    PowerTradingAction,
+    PowerTraderProposal,
     render_research_plan,
-    render_trader_proposal,
+    render_power_trader_proposal,
 )
 from tradingagents.agents.trader.trader import create_trader
 
@@ -31,8 +31,8 @@ from tradingagents.agents.trader.trader import create_trader
 @pytest.mark.unit
 class TestRenderTraderProposal:
     def test_minimal_required_fields(self):
-        p = TraderProposal(action=TraderAction.HOLD, reasoning="Balanced setup; no edge.")
-        md = render_trader_proposal(p)
+        p = PowerTraderProposal(action=PowerTradingAction.HOLD, reasoning="Balanced setup; no edge.")
+        md = render_power_trader_proposal(p)
         assert "**Action**: Hold" in md
         assert "**Reasoning**: Balanced setup; no edge." in md
         # The trailing FINAL TRANSACTION PROPOSAL line is preserved for the
@@ -40,14 +40,14 @@ class TestRenderTraderProposal:
         assert "FINAL TRANSACTION PROPOSAL: **HOLD**" in md
 
     def test_optional_fields_included_when_present(self):
-        p = TraderProposal(
-            action=TraderAction.BUY,
+        p = PowerTraderProposal(
+            action=PowerTradingAction.BUY,
             reasoning="Strong technicals + fundamentals.",
             entry_price=189.5,
             stop_loss=178.0,
             position_sizing="6% of portfolio",
         )
-        md = render_trader_proposal(p)
+        md = render_power_trader_proposal(p)
         assert "**Action**: Buy" in md
         assert "**Entry Price**: 189.5" in md
         assert "**Stop Loss**: 178.0" in md
@@ -55,8 +55,8 @@ class TestRenderTraderProposal:
         assert "FINAL TRANSACTION PROPOSAL: **BUY**" in md
 
     def test_optional_fields_omitted_when_absent(self):
-        p = TraderProposal(action=TraderAction.SELL, reasoning="Guidance cut.")
-        md = render_trader_proposal(p)
+        p = PowerTraderProposal(action=PowerTradingAction.SELL, reasoning="Guidance cut.")
+        md = render_power_trader_proposal(p)
         assert "Entry Price" not in md
         assert "Stop Loss" not in md
         assert "Position Sizing" not in md
@@ -67,7 +67,7 @@ class TestRenderTraderProposal:
 class TestRenderResearchPlan:
     def test_required_fields(self):
         p = ResearchPlan(
-            recommendation=PortfolioRating.OVERWEIGHT,
+            recommendation=PowerTradingAction.REDUCE,
             rationale="Bull case carried; tailwinds intact.",
             strategic_actions="Build position over two weeks; cap at 5%.",
         )
@@ -77,7 +77,7 @@ class TestRenderResearchPlan:
         assert "**Strategic Actions**: Build position" in md
 
     def test_all_5_tier_ratings_render(self):
-        for rating in PortfolioRating:
+        for rating in PowerTradingAction:
             p = ResearchPlan(
                 recommendation=rating,
                 rationale="r",
@@ -99,13 +99,13 @@ def _make_trader_state():
     }
 
 
-def _structured_trader_llm(captured: dict, proposal: TraderProposal | None = None):
+def _structured_trader_llm(captured: dict, proposal: PowerTraderProposal | None = None):
     """Build a MagicMock LLM whose with_structured_output binding captures the
-    prompt and returns a real TraderProposal so render_trader_proposal works.
+    prompt and returns a real PowerTraderProposal so render_power_trader_proposal works.
     """
     if proposal is None:
-        proposal = TraderProposal(
-            action=TraderAction.BUY,
+        proposal = PowerTraderProposal(
+            action=PowerTradingAction.BUY,
             reasoning="Strong setup.",
         )
     structured = MagicMock()
@@ -121,19 +121,20 @@ def _structured_trader_llm(captured: dict, proposal: TraderProposal | None = Non
 class TestTraderAgent:
     def test_structured_path_produces_rendered_markdown(self):
         captured = {}
-        proposal = TraderProposal(
-            action=TraderAction.BUY,
+        proposal = PowerTraderProposal(
+            action=PowerTradingAction.BUY,
             reasoning="AI capex cycle intact; institutional flows constructive.",
-            entry_price=189.5,
-            stop_loss=178.0,
-            position_sizing="6% of portfolio",
+            volume_mw=20,
+            limit_price_eur=178.0,
+            execution_strategy="6% of portfolio",
         )
         llm = _structured_trader_llm(captured, proposal)
         trader = create_trader(llm)
         result = trader(_make_trader_state())
         plan = result["trader_investment_plan"]
         assert "**Action**: Buy" in plan
-        assert "**Entry Price**: 189.5" in plan
+        assert "**Volume**: 20 MW" in plan
+        assert "**Limit Price**: 178.0 EUR" in plan 
         assert "FINAL TRANSACTION PROPOSAL: **BUY**" in plan
         # The same rendered markdown is also added to messages for downstream agents.
         assert plan in result["messages"][0].content
@@ -182,7 +183,7 @@ def _make_rm_state():
 def _structured_rm_llm(captured: dict, plan: ResearchPlan | None = None):
     if plan is None:
         plan = ResearchPlan(
-            recommendation=PortfolioRating.HOLD,
+            recommendation=PowerTradingAction.HOLD,
             rationale="Balanced view across both sides.",
             strategic_actions="Hold current position; reassess after earnings.",
         )
@@ -200,7 +201,7 @@ class TestResearchManagerAgent:
     def test_structured_path_produces_rendered_markdown(self):
         captured = {}
         plan = ResearchPlan(
-            recommendation=PortfolioRating.OVERWEIGHT,
+            recommendation=PowerTradingAction.REDUCE,
             rationale="Bull case is stronger; AI tailwind intact.",
             strategic_actions="Build position gradually over two weeks.",
         )
@@ -208,7 +209,7 @@ class TestResearchManagerAgent:
         rm = create_research_manager(llm)
         result = rm(_make_rm_state())
         ip = result["investment_plan"]
-        assert "**Recommendation**: Overweight" in ip
+        assert "**Recommendation**: Reduce" in ip
         assert "**Rationale**: Bull case" in ip
         assert "**Strategic Actions**: Build position" in ip
 

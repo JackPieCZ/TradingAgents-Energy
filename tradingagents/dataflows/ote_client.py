@@ -24,11 +24,6 @@ except ImportError:
     import cache_layer
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s',
-    datefmt='%H:%M:%S'
-)
 
 OTE_NAMESPACE = "http://www.ote-cr.cz/schema/service/public"
 OTE_SOAP_URL = "http://www.ote-cr.cz/services/PublicDataService"
@@ -481,6 +476,11 @@ if __name__ == "__main__":
     date = sys.argv[1] if len(sys.argv) > 1 else "2026-04-28"
     deleted_count = cache_layer.clear_cache(source="ote")
     print(f"Deleted {deleted_count} parquet files from the cache.")
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s',
+        datefmt='%H:%M:%S'
+    )
 
     print("\n=== get_dam_prices ===")
     print(get_dam_prices(date))

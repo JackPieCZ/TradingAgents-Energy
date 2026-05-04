@@ -10,7 +10,7 @@ back gracefully to free-text generation.
 
 from __future__ import annotations
 
-from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
+from tradingagents.agents.schemas import PowerTraderProposal, PortfolioDecisionExchange, render_power_pm_decision, render_pm_decision_exchange, PowerPortfolioDecision
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
@@ -22,7 +22,7 @@ from tradingagents.agents.utils.structured import (
 
 
 def create_portfolio_manager_exchange(llm):
-    structured_llm = bind_structured(llm, PortfolioDecision, "Portfolio Manager")
+    structured_llm = bind_structured(llm, PortfolioDecisionExchange, "Portfolio Manager")
 
     def portfolio_manager_node(state) -> dict:
         instrument_context = build_instrument_context(state["company_of_interest"])
@@ -67,7 +67,7 @@ def create_portfolio_manager_exchange(llm):
             structured_llm,
             llm,
             prompt,
-            render_pm_decision,
+            render_pm_decision_exchange,
             "Portfolio Manager",
         )
 
@@ -93,7 +93,7 @@ def create_portfolio_manager_exchange(llm):
 
 
 def create_portfolio_manager(llm):
-    structured_llm = bind_structured(llm, PortfolioDecision, "Portfolio Manager")
+    structured_llm = bind_structured(llm, PowerPortfolioDecision, "Portfolio Manager")
 
     def portfolio_manager_node(state) -> dict:
         instrument_context = build_instrument_context(state["company_of_interest"])
@@ -129,13 +129,14 @@ def create_portfolio_manager(llm):
         - Correlation between adjacent delivery hours (a long H14 and long H15 doubles exposure)
 
         3. YOUR DECISION must include:
+        - Regime assessment: Normal/Stressed/Oversupplied/Volatile
         - Action: Buy/Sell/Hold/Reduce/NoTrade
+        - Execution strategy
         - Volume in MW
         - Price target in EUR/MWh
         - Stop loss in EUR/MWh
         - Maximum imbalance exposure you'll accept
-        - Regime assessment: Normal/Stressed/Oversupplied/Volatile
-        - Executive summary: 2-3 sentences explaining the decision
+        - Executive summary and Investment rationale grounded in specific evidence from the analysts
 
         REMEMBER: The goal is NET TRADING VALUE after all costs. A clever NoTrade decision on a marginal signal is worth more than a losing trade on a noisy signal.
 
@@ -152,7 +153,7 @@ def create_portfolio_manager(llm):
             structured_llm,
             llm,
             prompt,
-            render_pm_decision,
+            render_power_pm_decision,
             "Portfolio Manager",
         )
 

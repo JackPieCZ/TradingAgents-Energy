@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 import datetime
 import typer
@@ -52,10 +53,10 @@ class MessageBuffer:
 
     # Analyst name mapping
     ANALYST_MAPPING = {
-        "market": "Market Analyst",
-        "social": "Social Analyst",
-        "news": "News Analyst",
-        "fundamentals": "Fundamentals Analyst",
+        "market": "Price & Technical Analyst",
+        "social": "System State Analyst",
+        "news": "Energy News & Regulatory Analyst",
+        "fundamentals": "Weather & Forecast Analyst",
     }
 
     # Report section mapping: section -> (analyst_key for filtering, finalizing_agent)
@@ -991,6 +992,25 @@ def run_analysis(checkpoint: bool = False):
     report_dir.mkdir(parents=True, exist_ok=True)
     log_file = results_dir / "message_tool.log"
     log_file.touch(exist_ok=True)
+    run_log_file = results_dir / "run.log"
+    logging.basicConfig(
+        level=config.get("log_level", logging.DEBUG),
+        format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    root_logger = logging.getLogger()
+    # Strip existing stream handlers to prevent console pollution
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+        
+    # Send all logs into the file instead
+    file_handler = logging.FileHandler(run_log_file, encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter(
+        "[%(levelname)s] %(asctime)s - %(name)s - %(message)s", 
+        datefmt="%H:%M:%S"
+    ))
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(config.get("log_level", logging.DEBUG))
 
     def save_message_decorator(obj, func_name):
         func = getattr(obj, func_name)

@@ -5,7 +5,7 @@ import pandas as pd
 from unittest.mock import MagicMock, patch
 
 from tradingagents.agents.utils.memory import TradingMemoryLog
-from tradingagents.agents.schemas import PortfolioDecision, PortfolioRating
+from tradingagents.agents.schemas import PowerPortfolioDecision, PowerTradingAction
 from tradingagents.graph.reflection import Reflector
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.graph.propagation import Propagator
@@ -83,14 +83,15 @@ def _make_pm_state(past_context=""):
     }
 
 
-def _structured_pm_llm(captured: dict, decision: PortfolioDecision | None = None):
+def _structured_pm_llm(captured: dict, decision: PowerPortfolioDecision | None = None):
     """Build a MagicMock LLM whose with_structured_output binding captures the
     prompt and returns a real PortfolioDecision (so render_pm_decision works).
     """
     if decision is None:
-        decision = PortfolioDecision(
-            rating=PortfolioRating.HOLD,
+        decision = PowerPortfolioDecision(
+            action=PowerTradingAction.HOLD,
             executive_summary="Hold the position; await catalyst.",
+            regime_assessment="Regime is uncertain; indicators are mixed.",
             investment_thesis="Balanced view; neither side carried the debate.",
         )
     structured = MagicMock()

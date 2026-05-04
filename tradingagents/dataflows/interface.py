@@ -310,6 +310,8 @@ def get_vendor(category: str, method: str = None, market_area: str = None) -> st
 
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
+    logger.info(f"Executing tool call: {method} | args: {args} | kwargs: {kwargs}")
+    
     category = get_category_for_method(method)
 
     # Try to extract market_area from kwargs to support market-aware routing
