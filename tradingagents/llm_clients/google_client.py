@@ -35,10 +35,34 @@ class GoogleClient(BaseLLMClient):
             if key in self.kwargs:
                 llm_kwargs[key] = self.kwargs[key]
 
-        # Unified api_key maps to provider-specific google_api_key
-        google_api_key = self.kwargs.get("api_key") or self.kwargs.get("google_api_key")
-        if google_api_key:
-            llm_kwargs["google_api_key"] = google_api_key
+        # Force Vertex AI backend
+        import os
+        llm_kwargs["vertexai"] = True
+        
+        project = self.kwargs.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        if project:
+            llm_kwargs["project"] = project
+            
+        location = self.kwargs.get("location") or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        if location:
+            llm_kwargs["location"] = location
+
+        # Attempt to load Application Default Credentials (ADC)
+        try:
+            import google.auth
+            import google.auth.exceptions
+            credentials, adc_project = google.auth.default()
+            llm_kwargs["credentials"] = credentials
+            
+            # If project wasn't explicitly set, use the one from ADC
+            if "project" not in llm_kwargs and adc_project:
+                llm_kwargs["project"] = adc_project
+                
+        except (ImportError, getattr(google.auth.exceptions, "DefaultCredentialsError", Exception)):
+            # Fallback to API Key if ADC fails or google.auth is missing
+            google_api_key = self.kwargs.get("api_key") or self.kwargs.get("google_api_key")
+            if google_api_key:
+                llm_kwargs["api_key"] = google_api_key
 
         # Map thinking_level to appropriate API param based on model
         # Gemini 3 Pro: low, high
