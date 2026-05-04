@@ -29,6 +29,7 @@ from tradingagents.agents.utils.agent_states import (
     RiskDebateState,
 )
 from tradingagents.agents.utils.memory import TradingMemoryLog
+from tradingagents.agents.utils.logging_callbacks import LoggingCallbackHandler
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.agents import *
 from tradingagents.llm_clients import create_llm_client
@@ -80,6 +81,7 @@ class TradingAgentsGraph:
         self.debug = debug
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
+        self.callbacks.append(LoggingCallbackHandler())
 
         # Update the interface's config
         set_config(self.config)
@@ -377,6 +379,10 @@ class TradingAgentsGraph:
         if self.config.get("checkpoint_enabled"):
             tid = thread_id(company_name, str(trade_date))
             args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = tid
+
+        args.setdefault("config", {})
+        if self.callbacks:
+            args["config"].setdefault("callbacks", []).extend(self.callbacks)
 
         if self.debug:
             trace = []

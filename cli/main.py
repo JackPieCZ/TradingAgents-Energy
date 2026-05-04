@@ -992,7 +992,6 @@ def run_analysis(checkpoint: bool = False):
     report_dir.mkdir(parents=True, exist_ok=True)
     log_file = results_dir / "message_tool.log"
     log_file.touch(exist_ok=True)
-    run_log_file = results_dir / "run.log"
     logging.basicConfig(
         level=config.get("log_level", logging.DEBUG),
         format='[%(levelname)s] %(asctime)s - %(name)s - %(message)s',
@@ -1004,6 +1003,7 @@ def run_analysis(checkpoint: bool = False):
         root_logger.removeHandler(handler)
         
     # Send all logs into the file instead
+    run_log_file = results_dir / "run.log"
     file_handler = logging.FileHandler(run_log_file, encoding="utf-8")
     file_handler.setFormatter(logging.Formatter(
         "[%(levelname)s] %(asctime)s - %(name)s - %(message)s", 
@@ -1214,7 +1214,7 @@ def run_analysis(checkpoint: bool = False):
 
     # Prompt to save report
     save_choice = typer.prompt("Save report?", default="Y").strip().upper()
-    if save_choice in ("Y", "YES", ""):
+    if save_choice in ("Y", "YES"):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
         save_path_str = typer.prompt(
@@ -1231,7 +1231,7 @@ def run_analysis(checkpoint: bool = False):
 
     # Prompt to display full report
     display_choice = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper()
-    if display_choice in ("Y", "YES", ""):
+    if display_choice in ("Y", "YES"):
         display_complete_report(final_state)
 
 
