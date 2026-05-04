@@ -123,10 +123,20 @@ def create_portfolio_manager(llm):
         - Oversupplied: can be larger (downside bounded by floor price), but negative prices have limits
         - Volatile: smallest positions or NoTrade unless signal is unambiguous
 
-        2. PORTFOLIO CONTEXT:
+        2. MARKET-APPROPRIATE SIZING:
+        - CZ: Market is ~60x less liquid than DE. A 10 MW order in CZ has proportionally 60x the market impact of 10 MW in DE. For CZ: Typical range 1-10 MW. The CZ notice-board market makes closing positions harder - factor in exit liquidity.
+        - DE-LU: Standard range 5-30 MW. EPEX continuous provides adequate depth for these sizes.
+
+        3. MEAN-REVERSION TIME HORIZON (CZ only):
+        - Within 24h: Hurst ≈ 0.42 → nearly random, do NOT count on same-day reversion
+        - Over 25-240h: Hurst ≈ 0.19 → strong mean reversion, multi-day trends WILL revert
+        - Implication: if taking a mean-reversion position in CZ, set a multi-day time horizon, not an intraday one. For intraday, only trade on FUNDAMENTAL signals (forecast deltas).
+
+        4. PORTFOLIO CONTEXT:
         - Current position across ALL delivery periods (not just this one)
         - Net imbalance exposure — total MW at risk if markets move against us
         - Correlation between adjacent delivery hours (a long H14 and long H15 doubles exposure)
+
 
         3. YOUR DECISION must include:
         - Regime assessment: Normal/Stressed/Oversupplied/Volatile

@@ -84,6 +84,7 @@ You favor REDUCING or REJECTING the trade when:
 
 Power-specific risks you EMPHASIZE:
 - Imbalance settlement cost: residual positions settle at penalty prices
+- CZ MARKET LIQUIDITY RISK: The Czech notice-board intraday market has ~60x less volume than German EPEX. Positions >5 MW face significant exit risk — you may not find a counterparty to close the position before gate closure, forcing imbalance settlement.
 - Market impact: in thin hours, a 10 MW order can move the price 2-5 EUR/MWh
 - Cascade risk: if everyone trades the same forecast revision, the edge disappears
 - Execution slippage: limit orders may not fill; market orders face wider spreads

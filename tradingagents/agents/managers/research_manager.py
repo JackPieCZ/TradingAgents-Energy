@@ -87,14 +87,23 @@ def create_research_manager(llm):
         Plus a bull/bear debate with competing perspectives.
 
         YOUR SYNTHESIS MUST:
-        1. Identify the DOMINANT SIGNAL: Which analyst report carries the most weight for this specific delivery period? (Usually Weather & Forecast for renewable-heavy hours, System State for peak demand hours, Price & Technical for mean-reversion opportunities)
+        1. Identify the DOMINANT SIGNAL: Which analyst report carries the most weight for this delivery period?
+           - For CZ renewable-heavy hours (solar peak 10:00-15:00): Weather & Forecast is primary
+           - For CZ peak demand hours (08:00-20:00): System State is primary (merit order steepness)
+           - For CZ night hours: any wind signal has outsized impact; Price & Technical useful for mean reversion
+           - For DE-LU: Weather & Forecast is almost always primary (wind drives everything)
         2. Assess SIGNAL AGREEMENT: Do the analysts agree on direction? Disagreement = lower conviction.
-        3. Resolve the BULL/BEAR DEBATE: Which side has stronger evidence? Be specific.
-        4. Produce a CLEAR RESEARCH PLAN for the Trader:
-        - Directional call (bullish/bearish/neutral)
-        - Conviction level (high/medium/low)
-        - Key delivery hours to focus on
-        - Risk factors to monitor
+        3. Resolve the BULL/BEAR DEBATE: Which side has stronger evidence? Be specific about MW and EUR/MWh.
+        4. CHECK FOR PERSISTENCE TRAP (CZ only): Most CZ intraday price deviation is autoregressive
+           persistence from recent deviations, NOT new fundamental information [Ber17, R²=0.61 from AR term].
+           If the Price & Technical Analyst reports a trend, verify whether the Weather & Forecast Analyst
+           can explain it with a genuine forecast revision. Pure price-trend signals without fundamental
+           backing are unreliable for same-day trades in CZ (Hurst ≈ 0.42 = nearly random within 24h).
+        5. Produce a CLEAR RESEARCH PLAN for the Trader:
+           - Directional call (bullish/bearish/neutral)
+           - Conviction level (high/medium/low)
+           - Key delivery hours to focus on
+           - Risk factors to monitor
 
         Commit to a clear stance whenever the debate's strongest arguments warrant one; reserve Hold for situations where the evidence on both sides is genuinely balanced.
 

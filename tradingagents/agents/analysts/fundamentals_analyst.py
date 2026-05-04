@@ -111,11 +111,23 @@ CRITICAL ANALYSIS FRAMEWORK:
   → In stressed regimes, even small forecast errors cause large price spikes
 
 QUANTITATIVE BENCHMARKS (from literature):
-- German wind forecast error std dev: ~2-4 GW for day-ahead forecasts
 - Forecast error halves roughly every 6 hours closer to delivery
-- A 5 GW wind forecast error in Germany can move prices by 10-30 EUR/MWh
-- Czech solar installed capacity is ~2.5 GW; a clear→cloudy revision moves ~1-2 GW
 - Temperature: each 1°C below normal adds ~500 MW load (winter), ~200 MW (summer cooling)
+- Forecast error impact is REGIME-DEPENDENT: in high demand-quote regimes (>1.2), the SAME
+  forecast error moves prices 2-3x more than in normal regimes [Kie17]
+
+MARKET-SPECIFIC BENCHMARKS:
+If market area is DE-LU:
+  - Wind forecast error std dev: ~2-4 GW for day-ahead forecasts
+  - A 5 GW wind forecast error can move prices by 10-30 EUR/MWh
+  - Both wind (~65 GW onshore + 8 GW offshore) and solar (~80 GW) matter
+If market area is CZ:
+  - Solar + load forecast errors are the MOST SIGNIFICANT CZ intraday price drivers [Ber17]
+  - Wind capacity is negligible (~280 MW) — wind data may be poor or missing from ČEPS
+  - BUT: wind intermittency persists at NIGHT, so any night-hour wind signal has outsized impact
+  - ČEPS load forecasts systematically UNDERESTIMATE actual load (positive bias >91% of obs)
+  - Czech solar installed: ~2.1 GW; a clear→cloudy revision moves ~1-2 GW
+  - PV forecast errors matter most during SOLAR RAMPING hours: sunrise (hour 7) and sunset (hour 18) [Kie17]
 
 OUTPUT FORMAT: Your report must include:
 1. FORECAST DELTA SUMMARY: Current forecast vs DA forecast for wind and solar (MW difference)

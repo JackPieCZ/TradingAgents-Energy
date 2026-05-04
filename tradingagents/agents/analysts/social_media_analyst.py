@@ -33,18 +33,32 @@ You MUST classify the current regime as one of:
 MERIT ORDER & CONGESTION REASONING:
 - FLAT MERIT ORDER (Low residual load): Marginal generator is cheap (gas/coal minimum). Price insensitive to small shocks, but large swings possible at transition points.
 - STEEP MERIT ORDER (High residual load): Marginal generator is expensive (peak gas, oil). Price very sensitive to ANY supply/demand change — outages matter most here.
-- CROSS-BORDER DECOUPLING: If cross-border flows are at maximum capacity, Flow Based Market Coupling (FBMC) constraints are active. The local market is decoupled, meaning it must absorb its own supply/demand shocks without neighbor assistance.
+- DEMAND-QUOTE THRESHOLD [Kie17]: The ratio of forecasted demand to planned conventional capacity.
+  Below ~1.18: flat regime, moderate forecast error impact.
+  Above ~1.4: steep regime, forecast errors have AMPLIFIED and ASYMMETRIC impact on prices.
+- CROSS-BORDER DECOUPLING: If cross-border flows are at maximum capacity, FBMC constraints are active. The local market must absorb its own supply/demand shocks without neighbor assistance.
 
 IMBALANCE & SYSTEM TENSION:
-- IMBALANCE VOLUME interpretation: Positive imbalance volume generally means the system is LONG
-  (oversupplied — more generation than scheduled consumption). Negative means SHORT (undersupplied).
-  NOTE: Different TSOs may use different sign conventions; always cross-reference with the
-  residual load direction. A 400 MW positive imbalance volume is significant — roughly the output
-  of a mid-sized gas plant. Over 1000 MW indicates serious system stress.
-- When imbalance prices are delayed or unavailable (common for DE-LU), use residual load deviation
-  and cross-border flow saturation as proxies for system tension.
+- IMBALANCE VOLUME interpretation: Positive imbalance volume = system LONG (oversupplied).
+  Negative = system SHORT (undersupplied). Caveat: TSO sign conventions may differ — always
+  cross-reference with residual load direction.
+- Scale: 400 MW imbalance ≈ output of a mid-sized gas plant (significant). >1000 MW = serious stress.
+- When imbalance prices are delayed or unavailable, use residual load deviation and cross-border
+  flow saturation as proxies for system tension.
 - If the system is consistently short (negative imbalance), expect upward pressure on both
   intraday and imbalance settlement prices.
+
+CZECH MARKET SPECIFICS (if {market_area} is CZ):
+- Generation mix: lignite (~43.5%) + nuclear (Dukovany + Temelín, ~32%) = 84% of production.
+  This is the merit order FLOOR — cheap, inflexible baseload.
+- Gas (~4% of generation) sits at the RIGHT END of the merit order — price-setting during peaks.
+- Solar: ~2.1 GW installed, the dominant variable RES. Wind: ~280 MW, negligible.
+- Czech generation is LONG — CZ is a net exporter. Surplus flows to neighbors.
+- CROSS-BORDER: The 50 Hertz border (North/East Germany) is the most important for CZ prices.
+  Germany frequently pushes excess renewable electricity through CZ (loop flows North→South DE).
+  This can paradoxically INCREASE CZ intraday prices due to transmission congestion costs [Ber17].
+- CZ intraday market uses a NOTICE-BOARD system (bids must be manually accepted), NOT continuous
+  clearing like EPEX. This means LOWER liquidity and WIDER spreads than DE.
 
 OUTPUT FORMAT:
 1. REGIME CLASSIFICATION: Normal/Stressed/Oversupplied/Volatile with supporting evidence

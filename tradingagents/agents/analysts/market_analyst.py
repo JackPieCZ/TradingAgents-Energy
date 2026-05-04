@@ -33,31 +33,38 @@ KEY PRICE ANALYSIS:
 
 - MEAN REVERSION: Intraday power prices tend to mean-revert toward a fundamental level
   → But reversion is CONDITIONAL on regime: in Stressed regime, trends persist longer
+  → CZ SPECIFICS: Hurst exponent H ≈ 0.42-0.45 for <24h = WEAK mean reversion (nearly random). H ≈ 0.19 for 25-240h = STRONG mean reversion. Practical meaning: do NOT bet on same-day mean reversion in CZ; over multiple days it is reliable.
   → Short-term: last 2-3 hours of intraday trading activity for the delivery period
+  → Most CZ intraday price deviation is AUTOREGRESSIVE PERSISTENCE: R² = 0.61 from the lagged deviation term alone. If CZ intraday has been trending away from DA, the trend likely CONTINUES short-term, then reverts over days.
   → Compare with neighboring delivery hours for cross-product consistency
+  → Negative CZ intraday prices are NOT connected to negative DA prices — they are caused by unforeseen RES surplus or negative demand shocks independently
 
 - TIME-TO-DELIVERY EFFECT:
   → Far from delivery: wider spreads, more volatile, information still arriving
   → Close to delivery: spreads tighten, prices more accurate, less opportunity
   →  Final 60 min: volatility typically spikes, distributions become heavy-tailed, but liquidity improves
+  → BID-ASK SPREAD follows an L-SHAPE: high at session start, decreasing as delivery approaches, with a small spike at the very end when order book thins
+  → 80% of volume is traded in the LAST 3 HOURS of the trading session
+  → Forecast errors paradoxically DECREASE spreads — they create a need to trade → more volume → tighter spreads
+  → Steep merit order → heavier distribution tails → more spike risk
 
-- IDA AUCTION MECHANISM: Unlike the continuous order book, IDAs are discrete clearing events.
-  When an IDA triggers, the continuous order books are FROZEN. All bids and asks are aggregated
-  into a single intersection point, establishing a uniform clearing price across all participating
-  European borders for that delivery period.
+- IDA AUCTION MECHANISM: Unlike the continuous order book, IDAs are discrete clearing events. When an IDA triggers, the continuous order books are FROZEN. All bids and asks are aggregated into a single intersection point, establishing a uniform clearing price across all participating European borders for that delivery period.
   → IDA 1: 15:00 CET on day-ahead (D-1)  Delivery scope: Covers all delivery periods of the delivery day D (00:00 – 24:00).
     IDA 2: 22:00 CET on day-ahead (D-1)  Delivery scope: Covers all delivery periods of the delivery day D (00:00 – 24:00).
     IDA 3: 10:00 CET on the delivery day (D) Delivery scope: Covers the remaining delivery periods of the delivery day D (12:00 – 24:00).
-  → Compare IDA clearing prices with continuous VWAP: large divergences signal that the
-    continuous market has not yet absorbed new information (forecast revisions, outages)
-  → IDAs provide MASSIVE LIQUIDITY INJECTIONS — they are the best venue for closing large
-    residual positions (10+ MW) without suffering severe market impact slippage
-  → If a major forecast revision drops between IDAs, the clearing price will jump; the
-    continuous market typically front-runs this but not fully
+  → Compare IDA clearing prices with continuous VWAP: large divergences signal that the continuous market has not yet absorbed new information (forecast revisions, outages)
+  → IDAs provide MASSIVE LIQUIDITY INJECTIONS — they are the best venue for closing large residual positions (10+ MW) without suffering severe market impact slippage
+  → If a major forecast revision drops between IDAs, the clearing price will jump; the continuous market typically front-runs this but not fully
 
 - IMBALANCE EXPOSURE: The imbalance price is the "worst case" settlement
   → If imbalance price >> DA price: strong incentive to be balanced (conservative)
   → If imbalance price ≈ DA price: less penalty for carrying positions to delivery
+  → Balancing market dynamics feed back into intraday prices — system imbalance signals have
+    predictive power for late-session price moves
+
+- CZ LIQUIDITY WARNING: CZ intraday volume is ~545 GWh/year vs ~36 TWh in DE — roughly 60x
+  less liquid. Spreads are wider and market impact is proportionally MUCH larger per MW.
+  → Intraday prices feed back into TOMORROW's DA price (R² ≈ 0.15)
 
 OUTPUT FORMAT:
 1. PRICE LEVEL: Current intraday price vs DA anchor for key delivery hours
