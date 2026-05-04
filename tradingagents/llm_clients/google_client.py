@@ -38,11 +38,11 @@ class GoogleClient(BaseLLMClient):
         # Force Vertex AI backend
         import os
         llm_kwargs["vertexai"] = True
-        
+
         project = self.kwargs.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT")
         if project:
             llm_kwargs["project"] = project
-            
+
         location = self.kwargs.get("location") or os.environ.get("GOOGLE_CLOUD_LOCATION")
         if location:
             llm_kwargs["location"] = location
@@ -52,7 +52,7 @@ class GoogleClient(BaseLLMClient):
             import google.auth
             import google.auth.exceptions
             from pathlib import Path
-            
+
             # Automatically pick up local secrets file if GOOGLE_APPLICATION_CREDENTIALS is not set
             if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
                 for local_adc in [Path(".secrets/application_default_credentials.json"), Path(".secrets/gcp_adc.json")]:
@@ -62,11 +62,11 @@ class GoogleClient(BaseLLMClient):
 
             credentials, adc_project = google.auth.default()
             llm_kwargs["credentials"] = credentials
-            
+
             # If project wasn't explicitly set, use the one from ADC
             if "project" not in llm_kwargs and adc_project:
                 llm_kwargs["project"] = adc_project
-                
+
         except (ImportError, getattr(google.auth.exceptions, "DefaultCredentialsError", Exception)):
             # Fallback to API Key if ADC fails or google.auth is missing
             google_api_key = self.kwargs.get("api_key") or self.kwargs.get("google_api_key")
@@ -74,6 +74,10 @@ class GoogleClient(BaseLLMClient):
                 llm_kwargs["api_key"] = google_api_key
             else:
                 import logging
+                print("To set up ADC for Google Cloud, you can run the following command in your terminal:\n\n"
+                      "    bash <(curl -sSL https://storage.googleapis.com/cloud-samples-data/adc/setup_adc.sh)\n\n"
+                      "After authenticating, move the generated `application_default_credentials.json` into the `.secrets/` directory.\n"
+                      )
                 logging.warning(
                     "To set up ADC for Google Cloud, you can run the following command in your terminal:\n\n"
                     "    bash <(curl -sSL https://storage.googleapis.com/cloud-samples-data/adc/setup_adc.sh)\n\n"
