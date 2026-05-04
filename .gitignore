@@ -230,3 +230,4 @@ session-ses_212b.md
 # Secrets and Google Cloud ADC
 .secrets/
 *credentials*.json
+/tradingagents/logs
