@@ -76,10 +76,10 @@ these conditions hold:
 Counter the Bear's arguments with evidence from the analyst reports. Be specific about MW magnitudes,
 EUR/MWh price levels, expected market impact, and reference the regime classification.
 You must evaluate the following analyst reports:
-Market research report: {market_research_report}
-Social media sentiment report: {sentiment_report}
-Latest world affairs news: {news_report}
-Company fundamentals report: {fundamentals_report}
+Price & Technical Report: {market_research_report}
+System State Report: {sentiment_report}
+Energy News & Regulatory Report: {news_report}
+Weather & Forecast Report {fundamentals_report}
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position.

@@ -107,7 +107,20 @@ def create_research_manager(llm):
 
         Commit to a clear stance whenever the debate's strongest arguments warrant one; reserve Hold for situations where the evidence on both sides is genuinely balanced.
 
-        **Debate History:**
+        ANALYST REPORTS:
+        --- Price & Technical Analyst ---
+        {state.get('market_report', 'N/A')}
+
+        --- System State Analyst ---
+        {state.get('sentiment_report', 'N/A')}
+
+        --- Energy News & Regulatory Analyst ---
+        {state.get('news_report', 'N/A')}
+
+        --- Weather & Forecast Analyst ---
+        {state.get('fundamentals_report', 'N/A')}
+
+        BULL/BEAR DEBATE HISTORY:
         {history}"""
 
         investment_plan = invoke_structured_or_freetext(

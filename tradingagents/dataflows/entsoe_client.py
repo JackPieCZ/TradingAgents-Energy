@@ -219,7 +219,7 @@ def query_intraday_prices(
     auction_sequence: Annotated[Optional[int], "Intraday auction number: 1, 2, or 3. None for all."] = None,
 ) -> str:
     """Fetch intraday auction prices (XBID/CIDAR) for a given date and zone."""
-    return "Intraday prices are currently unavailable due to ENTSO-E API changes. This will be re-enabled in Phase 2 after we implement the new API endpoints and data parsing logic."
+    # return "Intraday prices are currently unavailable due to ENTSO-E API changes. This will be re-enabled in Phase 2 after we implement the new API endpoints and data parsing logic."
 
     def fetch():
         client = _get_client()

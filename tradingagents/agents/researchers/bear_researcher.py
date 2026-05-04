@@ -80,10 +80,10 @@ these conditions hold:
 Counter the Bull's arguments with evidence from the analyst reports. Be specific about risks in
 EUR/MWh terms, MW volumes, transaction costs, and market impact.
 You must evaluate the following analyst reports:
-Market research report: {market_research_report}
-Social media sentiment report: {sentiment_report}
-Latest world affairs news: {news_report}
-Company fundamentals report: {fundamentals_report}
+Price & Technical Report: {market_research_report}
+System State Report: {sentiment_report}
+Energy News & Regulatory Report: {news_report}
+Weather & Forecast Report {fundamentals_report}
 Conversation history of the debate: {history}
 Last bull argument: {current_response}
 Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of taking a long position.

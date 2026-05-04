@@ -154,6 +154,20 @@ def create_portfolio_manager(llm):
         - Research Manager's investment plan: **{research_plan}**
         - Trader's transaction proposal: **{trader_plan}**
         {lessons_line}
+        
+        **Analyst Reports:**
+        --- Price & Technical Analyst ---
+        {state.get('market_report', 'N/A')}
+
+        --- System State Analyst ---
+        {state.get('sentiment_report', 'N/A')}
+
+        --- Energy News & Regulatory Analyst ---
+        {state.get('news_report', 'N/A')}
+
+        --- Weather & Forecast Analyst ---
+        {state.get('fundamentals_report', 'N/A')}
+
         **Risk Analysts Debate History:**
         {history}
 

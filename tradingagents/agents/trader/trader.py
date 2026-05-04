@@ -110,7 +110,13 @@ def create_trader(llm):
                 "role": "user",
                 "content": (
                     f"Based on a comprehensive analysis by a team of analysts, here is an investment "
-                    f"plan tailored for delivery period {delivery_period} in {market_area}. Use this plan as a foundation for evaluating your next trading decision.\n\nProposed Investment Plan: {investment_plan}\n\n"
+                    f"plan tailored for delivery period {delivery_period} in {market_area}. Use this plan as a foundation for evaluating your next trading decision.\n\n"
+                    f"ANALYST REPORTS:\n"
+                    f"--- Price & Technical Analyst ---\n{state.get('market_report', 'N/A')}\n\n"
+                    f"--- System State Analyst ---\n{state.get('sentiment_report', 'N/A')}\n\n"
+                    f"--- Energy News & Regulatory Analyst ---\n{state.get('news_report', 'N/A')}\n\n"
+                    f"--- Weather & Forecast Analyst ---\n{state.get('fundamentals_report', 'N/A')}\n\n"
+                    f"Proposed Investment Plan: {investment_plan}\n\n"
                     f"Leverage these insights to make an informed and strategic decision."
                 ),
             },
