@@ -494,6 +494,9 @@ if __name__ == "__main__":
     print("\n=== get_imbalance_settlement ===")
     print(get_imbalance_settlement(date, version=0))
 
+    deleted_count = cache_layer.clear_cache(source="ote")
+    print(f"Deleted {deleted_count} parquet files from the cache.")
+
 """
 Reference output
 === get_dam_prices ===

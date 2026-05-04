@@ -950,6 +950,13 @@ if __name__ == "__main__":
     print("\n=== query_residual_load ===")
     print(query_residual_load(date, market_area))
 
+    try:
+        deleted_count = cache_layer.clear_cache(source="entsoe")
+        print(f"Deleted {deleted_count} parquet files from the ENTSO-E cache.")
+    except Exception as e:
+        logger.warning(f"Error clearing cache: {e}")
+        pass
+
 """
 Reference output
 === query_day_ahead_prices ===
@@ -1198,7 +1205,7 @@ Hour,DE-LU Flow,AT Flow,PL Flow,SK Flow,Net Import MW
 
 ## Detailed REMIT Messages (Sorted by Newest Publication First)
   published_time                plant_type  plant_name         outage_type  nominal_capacity  available_capacity            start              end  unavailable_MW
-2026-05-01 12:14 Fossil Brown coal/Lignite EECK_______ Planned maintenance             139.0               102.0 2026-04-10 11:00 2026-05-03 00:00            37.0
+2026-05-04 17:48 Fossil Brown coal/Lignite EECK_______ Planned maintenance             139.0               102.0 2026-04-10 11:00 2026-05-07 00:00            37.0
 2026-04-30 14:34 Fossil Brown coal/Lignite EPC1_______ Planned maintenance             205.0                 0.0 2026-04-27 00:00 2026-04-30 14:30           205.0
 2026-04-30 14:34 Fossil Brown coal/Lignite EPC1_______ Planned maintenance             205.0                 0.0 2026-04-27 00:00 2026-04-30 14:30           205.0
 2026-04-29 10:13 Fossil Brown coal/Lignite EECK_______ Planned maintenance             135.0               100.0 2026-04-14 00:00 2026-04-29 10:15            35.0
@@ -1250,33 +1257,33 @@ Hour,Imbalance Volume MW,Imbalance Volume MW StdDev,Imbalance Volume MW Range,Im
 
 
 === query_residual_load ===
-# Residual Load Forecast for CZ on 2026-04-28
+# Residual Load Actual for CZ on 2026-04-28
 # Source: ENTSO-E
 # Unit: MW
 
-Hour,Load Forecast MW,Solar MW,Residual Load MW
-00:00,5952.0,0.0,5952.0
-01:00,5940.0,0.0,5940.0
-02:00,5833.0,0.0,5833.0
-03:00,5799.5,0.0,5799.5
-04:00,5954.75,0.0,5954.75
-05:00,6482.75,18.0,6464.75
-06:00,7410.25,176.75,7233.5
-07:00,7993.25,649.75,7343.5
-08:00,8277.25,1386.0,6891.25
-09:00,8526.75,2100.0,6426.75
-10:00,8475.25,2600.5,5874.75
-11:00,8506.25,2871.5,5634.75
-12:00,8530.0,2942.0,5588.0
-13:00,8386.75,2873.5,5513.25
-14:00,8027.25,2629.25,5398.0
-15:00,7757.5,2249.25,5508.25
-16:00,7516.25,1745.25,5771.0
-17:00,7340.5,1102.5,6238.0
-18:00,7228.0,499.25,6728.75
-19:00,7339.0,140.5,7198.5
-20:00,7409.5,14.75,7394.75
-21:00,7077.5,0.0,7077.5
-22:00,6724.0,0.0,6724.0
-23:00,6350.5,0.0,6350.5
+Hour,Actual Load MW,Solar MW
+00:00,6041.692,0.0
+01:00,6000.142,0.0
+02:00,5869.858,0.0
+03:00,5863.173,0.0
+04:00,6060.003,0.0
+05:00,6614.232,18.0
+06:00,7621.21,176.75
+07:00,8108.565,649.75
+08:00,8409.92,1386.0
+09:00,8675.038,2100.0
+10:00,8634.968,2600.5
+11:00,8510.48,2871.5
+12:00,8517.128,2942.0
+13:00,8467.405,2873.5
+14:00,8074.382,2629.25
+15:00,7957.855,2249.25
+16:00,7673.938,1745.25
+17:00,7461.455,1102.5
+18:00,7263.845,499.25
+19:00,7430.09,140.5
+20:00,7463.558,14.75
+21:00,7050.997,0.0
+22:00,6722.61,0.0
+23:00,6392.468,0.0
 """
