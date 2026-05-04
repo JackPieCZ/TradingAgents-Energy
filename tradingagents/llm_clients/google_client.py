@@ -72,6 +72,13 @@ class GoogleClient(BaseLLMClient):
             google_api_key = self.kwargs.get("api_key") or self.kwargs.get("google_api_key")
             if google_api_key:
                 llm_kwargs["api_key"] = google_api_key
+            else:
+                import logging
+                logging.warning(
+                    "To set up ADC for Google Cloud, you can run the following command in your terminal:\n\n"
+                    "    bash <(curl -sSL https://storage.googleapis.com/cloud-samples-data/adc/setup_adc.sh)\n\n"
+                    "After authenticating, move the generated `application_default_credentials.json` into the `.secrets/` directory.\n"
+                )
 
         # Map thinking_level to appropriate API param based on model
         # Gemini 3 Pro: low, high

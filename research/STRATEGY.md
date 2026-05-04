@@ -184,9 +184,14 @@ Since we have free access to all primary data sources (ENTSO-E, OTE, SMARD, Open
 
 ---
 
-## Phase 2: Redefine Agent Roles and State Schema
+## Phase 2: Redefine Agent Roles and State Schema ✅ COMPLETE (with known bugs)
 
 **Goal**: Redesign the agent team from equity-focused to power-market-focused.
+
+**Status**: All tool files, AgentState, tool nodes, propagation, and propagate() signature implemented. Known bugs to fix in Phase 5:
+1. **CRITICAL**: `propagation.py` `RiskDebateState` initialized with wrong field names (`agg_history`, `con_history` instead of `aggressive_history`, `conservative_history`, etc.) — will crash at runtime
+2. **MODERATE**: All 4 analyst prompt templates include literal `"..."` strings and `instrument_context` is computed but never injected into the template
+3. Phase 1 known data bugs (CZK→EUR, SMARD filter_id, load forecast) still not fixed
 
 **References**: Playbook Section "Best approaches for the transition", Kup22, Kie17, Kre21b, Hir22
 
@@ -263,9 +268,11 @@ self.tool_nodes = {
 
 ---
 
-## Phase 3: Rewrite Agent Prompts
+## Phase 3: Rewrite Agent Prompts ✅ COMPLETE
 
 **Goal**: Replace stock-trading prompts with power-market-expert prompts.
+
+**Status**: All prompts rewritten with deep domain expertise. Weather & Forecast, System State, Price & Technical, Energy News & Regulatory analysts all have power-specific analytical workflows. Bull/Bear researchers, risk analysts, Trader, PM, and Research Manager all updated. CLI display names updated. Prompt quality is high — includes specific MW magnitudes, EUR/MWh benchmarks, regime classification frameworks, and REMIT compliance awareness.
 
 **References**: Read ALL analyst papers again before writing prompts. Each prompt should encode domain expertise from the literature.
 
@@ -328,9 +335,11 @@ The bull/bear researchers and risk analysts need power-market context in their p
 
 ---
 
-## Phase 4: Update Schemas and Decision Outputs
+## Phase 4: Update Schemas and Decision Outputs ← NEXT
 
 **Goal**: Adapt structured output schemas for power market decisions.
+
+**Status**: NOT STARTED. Current schemas still use equity PortfolioRating (Buy/Overweight/Hold/Underweight/Sell) and TraderAction (Buy/Hold/Sell). Prompts already ask for power-specific outputs (volume_mw, execution_strategy, regime_assessment) but schemas can't capture them. See `phase4_5_implementation_plan.md` for detailed instructions.
 
 **File**: `tradingagents/agents/schemas.py`
 
@@ -382,9 +391,11 @@ class PowerPortfolioDecision(BaseModel):
 
 ---
 
-## Phase 5: Update the Graph Orchestration
+## Phase 5: Update the Graph Orchestration ← NEXT (partially done)
 
 **Goal**: Wire the new agents into the LangGraph pipeline.
+
+**Status**: PARTIALLY DONE. Tool nodes and propagate() signature already updated in Phase 2. Remaining work: clean up `_run_graph` naming, replace `_fetch_returns` (still uses yfinance/SPY), update `reflection.py` (still "Alpha vs SPY"), update `_log_state` to include power fields, fix critical bug in `propagation.py`. See `phase4_5_implementation_plan.md` for detailed instructions.
 
 **Files to modify**: `tradingagents/graph/setup.py`, `tradingagents/graph/trading_graph.py`, `tradingagents/graph/propagation.py`, `tradingagents/graph/conditional_logic.py`
 

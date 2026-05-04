@@ -18,10 +18,19 @@ This is a fork of [TauricResearch/TradingAgents](https://github.com/TauricResear
 ## Current Status
 
 Phase 0 (research & context gathering) is **complete**. All 27 papers are in project knowledge. All data access is resolved.
-Phase 1 (data layer) is **complete** — all 8 data modules implemented and tested with live APIs (ENTSO-E, OTE SOAP, SMARD, Open-Meteo). See `phase1_review_and_phase2_3_plan.md` for detailed review.
-Implementation continues at **Phase 2: Redefine Agent Roles and State Schema**.
+Phase 1 (data layer) is **complete** — all 8 data modules implemented and tested with live APIs (ENTSO-E, OTE SOAP, SMARD, Open-Meteo).
+Phase 2 (agent roles & state) is **complete** — AgentState updated, 4 energy tool files created, tool nodes wired, propagation updated, propagate() signature changed to `(delivery_period, trade_timestamp, market_area)`.
+Phase 3 (agent prompts) is **complete** — all 13 agent prompts rewritten with power-market domain expertise (analysts, researchers, risk analysts, trader, PM, research manager). CLI display names updated.
+Implementation continues at **Phase 4: Update Schemas and Decision Outputs**.
 
-**Phase 1 known issues** (to fix at start of Phase 2):
+**Known bugs to fix at start of Phase 4-5** (discovered during Phase 2-3 code review):
+1. **CRITICAL**: `propagation.py` line 83-85 — `RiskDebateState` initialized with wrong field names (`agg_history`, `con_history` instead of `aggressive_history`, `conservative_history`, etc.). Will crash at runtime.
+2. **MODERATE**: All 4 analyst `create_*` functions — prompt template includes literal `"..."` strings, and `instrument_context` is computed but never injected into the template (LLM never sees the CZ vs DE-LU specific context).
+3. **MODERATE**: `schemas.py` still uses equity schemas — prompts ask for power-specific outputs (volume_mw, execution_strategy, etc.) but schemas can't capture them. Fix in Phase 4.
+4. **MODERATE**: `_fetch_returns()` and `reflection.py` still use yfinance/SPY — equity-specific. Fix in Phase 5.
+5. `rating.py` / `signal_processing.py` only recognize equity 5-tier ratings, not power actions (Reduce, NoTrade). Fix in Phase 4.
+
+**Phase 1 known data bugs** (still unfixed):
 1. ENTSO-E CZ imbalance prices are in CZK not EUR — needs conversion (~÷25)
 2. SMARD filter_id 410 used for both generation_total and total_load — must compute total from parts
 3. SMARD load forecast filter (123) returns wrong data (~10x too low) — needs correct filter ID
@@ -31,6 +40,7 @@ Implementation continues at **Phase 2: Redefine Agent Roles and State Schema**.
 
 See `STRATEGY.md` for the full 13-phase implementation plan with detailed instructions for each phase.
 See `phase1_review_and_phase2_3_plan.md` for detailed Phase 2-3 implementation instructions.
+See `phase4_5_implementation_plan.md` for detailed Phase 4-5 implementation instructions with bug fixes.
 
 ---
 
@@ -40,70 +50,68 @@ See `phase1_review_and_phase2_3_plan.md` for detailed Phase 2-3 implementation i
 TradingAgents/
 ├── main.py                          # Entry point — backtest loop
 ├── cli/                             # CLI interface (main.py, utils.py, models.py)
+│   └── main.py                      # ✅ Display names updated for energy analysts
 ├── tradingagents/
 │   ├── __init__.py
 │   ├── default_config.py            # All configuration defaults (LLM, vendors, paths)
 │   ├── agents/
 │   │   ├── analysts/
-│   │   │   ├── fundamentals_analyst.py   # → REPLACE with Weather & Forecast Analyst
-│   │   │   ├── market_analyst.py         # → ADAPT to Price & Technical Analyst
-│   │   │   ├── news_analyst.py           # → ADAPT to Energy News & Regulatory Analyst
-│   │   │   └── social_media_analyst.py   # → REPLACE with System State Analyst
+│   │   │   ├── fundamentals_analyst.py   # ✅ Weather & Forecast Analyst (create_fundamentals_analyst)
+│   │   │   ├── market_analyst.py         # ✅ Price & Technical Analyst (create_market_analyst)
+│   │   │   ├── news_analyst.py           # ✅ Energy News & Regulatory Analyst (create_news_analyst)
+│   │   │   └── social_media_analyst.py   # ✅ System State Analyst (create_social_media_analyst)
 │   │   ├── researchers/
-│   │   │   ├── bull_researcher.py        # → REWRITE prompts for power market context
-│   │   │   └── bear_researcher.py        # → REWRITE prompts for power market context
+│   │   │   ├── bull_researcher.py        # ✅ Power market bull arguments (create_bull_researcher)
+│   │   │   └── bear_researcher.py        # ✅ Power market bear arguments (create_bear_researcher)
 │   │   ├── managers/
-│   │   │   ├── research_manager.py       # → REWRITE prompt for power market synthesis
-│   │   │   └── portfolio_manager.py      # → REWRITE prompt for power market decisions
+│   │   │   ├── research_manager.py       # ✅ Power market synthesis (create_research_manager)
+│   │   │   └── portfolio_manager.py      # ✅ Power market PM with regime/MW/imbalance (create_portfolio_manager)
 │   │   ├── risk_mgmt/
-│   │   │   ├── aggressive_debator.py     # → REWRITE for power risk context
-│   │   │   ├── conservative_debator.py   # → REWRITE for power risk context
-│   │   │   └── neutral_debator.py        # → REWRITE for power risk context
+│   │   │   ├── aggressive_debator.py     # ✅ Power risk context (create_aggressive_debator)
+│   │   │   ├── conservative_debator.py   # ✅ Power risk context (create_conservative_debator)
+│   │   │   └── neutral_debator.py        # ✅ Power risk context (create_neutral_debator)
 │   │   ├── trader/
-│   │   │   └── trader.py                 # → REWRITE for power execution strategy
-│   │   ├── schemas.py                    # → EXTEND with PowerTradingAction, MarketRegime, etc.
+│   │   │   └── trader.py                 # ✅ Power execution strategy (create_trader)
+│   │   ├── schemas.py                    # → Phase 4: Add PowerTradingAction, MarketRegime, PowerTraderProposal, PowerPortfolioDecision
 │   │   └── utils/
-│   │       ├── agent_states.py           # → ADD power-specific fields (delivery_period, market_area, regime)
-│   │       ├── agent_utils.py            # → UPDATE tool imports
-│   │       ├── core_stock_tools.py       # → REPLACE with energy_price_tools.py
-│   │       ├── fundamental_data_tools.py # → REPLACE with system_data_tools.py + weather_tools.py
-│   │       ├── news_data_tools.py        # → REPLACE with energy_news_tools.py
-│   │       ├── technical_indicators_tools.py  # → REPLACE with energy_indicators_tools.py
-│   │       ├── memory.py                 # Append-only markdown decision log (reuse as-is)
-│   │       ├── rating.py                 # Parse rating from text (adapt for PowerTradingAction)
+│   │       ├── agent_states.py           # ✅ Power fields added (delivery_period, market_area, regime_indicator, etc.)
+│   │       ├── agent_utils.py            # Unchanged — still has old tool imports for exchange path
+│   │       ├── core_stock_tools.py       # Legacy — kept for stock path backward compatibility
+│   │       ├── energy_price_tools.py     # ✅ NEW — 4 tools (DA prices, intraday, IDA, imbalance)
+│   │       ├── system_data_tools.py      # ✅ NEW — 5 tools (residual load, generation, load, flows, outages)
+│   │       ├── weather_tools.py          # ✅ NEW — 6 tools (wind, solar, generation forecast, updates, weather, historical)
+│   │       ├── energy_news_tools.py      # ✅ NEW — 2 tools (outage notifications, actual load)
+│   │       ├── fundamental_data_tools.py # Legacy — kept for stock path
+│   │       ├── news_data_tools.py        # Legacy — kept for stock path
+│   │       ├── technical_indicators_tools.py  # Legacy — kept for stock path
+│   │       ├── memory.py                 # Append-only markdown decision log (reuse as-is, update in Phase 5)
+│   │       ├── rating.py                 # → Phase 4: Add power action vocabulary (Reduce, NoTrade)
 │   │       └── structured.py             # Provider-agnostic structured output binding (reuse as-is)
 │   ├── dataflows/
-│   │   ├── interface.py                  # ✅ Vendor routing — energy categories added, 20+ methods
+│   │   ├── interface.py                  # ✅ Vendor routing — energy categories, 20+ methods
 │   │   ├── config.py                     # Runtime config access (reuse)
-│   │   ├── entsoe_client.py              # ✅ ENTSO-E — 10 methods (DA prices, forecasts, flows, outages, imbalance)
-│   │   ├── ote_client.py                 # ✅ OTE Czech SOAP — 5 methods (DA, intraday, IDA, imbalance)
-│   │   ├── smard_client.py               # ✅ SMARD German — 6 methods (generation, load, prices, forecasts)
-│   │   ├── weather_client.py             # ✅ Open-Meteo — 4 methods (wind, solar, weather, historical forecast)
-│   │   ├── energy_utils.py               # ✅ Shared utilities (timezone, bidding zones, DST, cache paths)
-│   │   ├── cache_layer.py                # ✅ Parquet-based local cache with clear_cache()
-│   │   ├── mock_energy.py                # ✅ Synthetic data generators (6 methods)
-│   │   ├── y_finance.py                  # KEEP for now (still used by stock path)
-│   │   └── ...                          # Other legacy modules
+│   │   ├── entsoe_client.py              # ✅ ENTSO-E — 10 methods
+│   │   ├── ote_client.py                 # ✅ OTE Czech SOAP — 5 methods
+│   │   ├── smard_client.py               # ✅ SMARD German — 6 methods
+│   │   ├── weather_client.py             # ✅ Open-Meteo — 4 methods
+│   │   ├── energy_utils.py               # ✅ Shared utilities
+│   │   ├── cache_layer.py                # ✅ Parquet-based local cache
+│   │   ├── mock_energy.py                # ✅ Synthetic data generators
+│   │   ├── y_finance.py                  # Legacy — still used by stock path
+│   │   └── ...                           # Other legacy modules
 │   ├── graph/
-│   │   ├── trading_graph.py              # → UPDATE: new analyst names, propagate() signature
-│   │   ├── setup.py                      # → UPDATE: new analyst→tool mappings
-│   │   ├── propagation.py                # → UPDATE: initial state with power fields
-│   │   ├── conditional_logic.py          # → UPDATE: routing for new tool nodes
-│   │   ├── reflection.py                 # → REWRITE: power-market-appropriate reflection
-│   │   ├── signal_processing.py          # → UPDATE: extract PowerTradingAction from PM decision
+│   │   ├── trading_graph.py              # ✅ Tool nodes updated, propagate() signature changed. → Phase 5: clean up _run_graph, replace _fetch_returns
+│   │   ├── setup.py                      # ✅ Energy tools wired to energy analyst factories
+│   │   ├── propagation.py                # ✅ Power initial state. ⚠️ BUG: RiskDebateState field names wrong
+│   │   ├── conditional_logic.py          # Unchanged — routing works for energy path
+│   │   ├── reflection.py                 # → Phase 5: Replace "Alpha vs SPY" with power P&L reflection
+│   │   ├── signal_processing.py          # → Phase 4: Must handle power actions after rating.py update
 │   │   └── checkpointer.py              # SQLite checkpointing (reuse as-is)
-│   ├── backtesting/                      # NEW: entire module
-│   │   ├── engine.py                     # Backtest orchestrator
-│   │   ├── metrics.py                    # Power-specific performance metrics (NTV, hit rate, etc.)
-│   │   ├── execution_sim.py             # Spread + impact + partial fill simulation
-│   │   ├── reporting.py                  # Post-backtest report generation
-│   │   └── baselines.py                  # Benchmark strategies (DA hold, naive, mean-reversion)
-│   ├── analytics/                        # NEW
-│   │   └── regime.py                     # Market regime classifier
+│   ├── backtesting/                      # → Phase 7: entire module
+│   ├── analytics/                        # → Phase 8: regime.py
 │   └── llm_clients/                      # Multi-provider LLM client factory (reuse as-is)
-├── epftoolbox-master/                    # Reference code only (NOT installed — Python version mismatch)
-├── tests/                                # Test suite → extend with energy tests
-├── scripts/                              # Utility scripts
+├── phase4_5_implementation_plan.md       # ✅ Detailed Phase 4-5 instructions with bug fixes
+├── tests/                                # Test suite
 └── pyproject.toml                        # Package definition
 ```
 
@@ -135,11 +143,14 @@ END
 - State is a `TypedDict` (`AgentState`) accumulating reports, debate history, and final decision
 - After each run, decisions are stored in a markdown memory log with LLM reflection
 
-**Key design changes for power markets:**
-- `propagate(delivery_period, trade_timestamp, market_area)` replaces `propagate(company_name, trade_date)`
-- State includes power-specific fields: `delivery_period`, `market_area`, `regime_indicator`, `day_ahead_position`
-- Reflection compares against DA price benchmark instead of SPY
-- Weather & Forecast Analyst is the most important role (forecast deltas = primary alpha source)
+**Key design changes for power markets (implemented):**
+- `propagate(delivery_period, trade_timestamp, market_area)` replaces `propagate(company_name, trade_date)` ✅
+- State includes power-specific fields: `delivery_period`, `market_area`, `regime_indicator`, `day_ahead_position` ✅
+- Tool nodes bind energy tools (ENTSO-E, OTE, SMARD, Open-Meteo) to energy analyst factories ✅
+- Analyst reports write to original field names (`market_report`, `sentiment_report`, `fundamentals_report`, `news_report`) for backward compat ✅
+- Weather & Forecast Analyst is the most important role (forecast deltas = primary alpha source) ✅
+- Reflection still compares against SPY — needs Phase 5 update to compare against DA price benchmark
+- Schemas still use equity ratings — needs Phase 4 update for PowerTradingAction/MarketRegime
 
 ---
 
@@ -229,10 +240,10 @@ Three coding tools available, each with different strengths. See STRATEGY.md App
 **Key principle**: Use Claude Code for decisions, Opencode for generation, Copilot for completion. Claude Code sessions should produce clear artifacts (skeletons, prompts, design notes) that other tools execute against.
 
 **Implementation order** (from STRATEGY.md Appendix B):
-1. Phase 1 (data layer) — without data, nothing works
-2. Phases 2-3 (agent roles + prompts) — core architecture + domain expertise
-3. Phase 4 (schemas) — structured outputs
-4. Phase 5 (graph wiring) — connect everything
+1. ~~Phase 1 (data layer) — without data, nothing works~~ ✅
+2. ~~Phases 2-3 (agent roles + prompts) — core architecture + domain expertise~~ ✅
+3. **Phase 4 (schemas) — structured outputs** ← NEXT (see `phase4_5_implementation_plan.md`)
+4. **Phase 5 (graph wiring cleanup + bug fixes)** ← NEXT (includes critical bug fixes from Phases 2-3)
 5. Phase 7 (backtesting + metrics) — need to measure results
 6. Phase 6 (power indicators) — enrich agent inputs
 7. Phase 8 (regime detection) — conditional performance
@@ -263,6 +274,8 @@ Three coding tools available, each with different strengths. See STRATEGY.md App
 - Upstream repo: https://github.com/TauricResearch/TradingAgents
 - Fork: https://github.com/JackPieCZ/TradingAgents-private.git
 - Implementation plan: `STRATEGY.md` (13 phases + 4 appendices)
+- Phase 2-3 instructions: `phase1_review_and_phase2_3_plan.md`
+- Phase 4-5 instructions: `phase4_5_implementation_plan.md` (includes bug fix list)
 - Power trading playbook: `Power_trading_transition_playbook.md`
 - Source analysis: `Sources_Power_trading_transition_from_algo_finance.md`
 - Key papers: Kup22, Kie17, Kre21b, Kat20, Nar21, Aid15, Hir22, Ser22, Bun18, Féron20, Martin18, Balardy22
