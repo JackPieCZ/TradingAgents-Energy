@@ -208,43 +208,64 @@ class TradingAgentsGraph:
             ),
         }
 
+    # def _fetch_returns(
+    #     self, ticker: str, trade_date: str, holding_days: int = 5
+    # ) -> Tuple[Optional[float], Optional[float], Optional[int]]:
+    #     """Fetch raw and alpha return for ticker over holding_days from trade_date.
+
+    #     Returns (raw_return, alpha_return, actual_holding_days) or
+    #     (None, None, None) if price data is unavailable (too recent, delisted,
+    #     or network error).
+    #     """
+    #     try:
+    #         start = datetime.strptime(trade_date, "%Y-%m-%d")
+    #         end = start + timedelta(days=holding_days + 7)  # buffer for weekends/holidays
+    #         end_str = end.strftime("%Y-%m-%d")
+
+    #         stock = yf.Ticker(ticker).history(start=trade_date, end=end_str)
+    #         spy = yf.Ticker("SPY").history(start=trade_date, end=end_str)
+
+    #         if len(stock) < 2 or len(spy) < 2:
+    #             return None, None, None
+
+    #         actual_days = min(holding_days, len(stock) - 1, len(spy) - 1)
+    #         raw = float(
+    #             (stock["Close"].iloc[actual_days] - stock["Close"].iloc[0])
+    #             / stock["Close"].iloc[0]
+    #         )
+    #         spy_ret = float(
+    #             (spy["Close"].iloc[actual_days] - spy["Close"].iloc[0])
+    #             / spy["Close"].iloc[0]
+    #         )
+    #         alpha = raw - spy_ret
+    #         return raw, alpha, actual_days
+    #     except Exception as e:
+    #         logger.warning(
+    #             "Could not resolve outcome for %s on %s (will retry next run): %s",
+    #             ticker, trade_date, e,
+    #         )
+    #         return None, None, None
+
     def _fetch_returns(
-        self, ticker: str, trade_date: str, holding_days: int = 5
+        self, delivery_period: str, trade_date: str, holding_days: int = 5
     ) -> Tuple[Optional[float], Optional[float], Optional[int]]:
-        """Fetch raw and alpha return for ticker over holding_days from trade_date.
-
-        Returns (raw_return, alpha_return, actual_holding_days) or
-        (None, None, None) if price data is unavailable (too recent, delisted,
-        or network error).
+        """Fetch realized P&L for a power delivery period.
+        
+        In the power market, the "return" is the realized P&L:
+        (intraday entry price - settlement price) * volume, net of spread/impact.
+        
+        This requires the backtesting/execution_sim module (Phase 7).
+        For now, returns None to skip deferred reflection.
         """
-        try:
-            start = datetime.strptime(trade_date, "%Y-%m-%d")
-            end = start + timedelta(days=holding_days + 7)  # buffer for weekends/holidays
-            end_str = end.strftime("%Y-%m-%d")
-
-            stock = yf.Ticker(ticker).history(start=trade_date, end=end_str)
-            spy = yf.Ticker("SPY").history(start=trade_date, end=end_str)
-
-            if len(stock) < 2 or len(spy) < 2:
-                return None, None, None
-
-            actual_days = min(holding_days, len(stock) - 1, len(spy) - 1)
-            raw = float(
-                (stock["Close"].iloc[actual_days] - stock["Close"].iloc[0])
-                / stock["Close"].iloc[0]
-            )
-            spy_ret = float(
-                (spy["Close"].iloc[actual_days] - spy["Close"].iloc[0])
-                / spy["Close"].iloc[0]
-            )
-            alpha = raw - spy_ret
-            return raw, alpha, actual_days
-        except Exception as e:
-            logger.warning(
-                "Could not resolve outcome for %s on %s (will retry next run): %s",
-                ticker, trade_date, e,
-            )
-            return None, None, None
+        # TODO Phase 7: Implement using energy price data
+        # Compare recommended trade price against:
+        # 1. Actual intraday settlement (VWAP or last price)
+        # 2. Day-ahead price (was intraday trading value-additive?)
+        # 3. Imbalance price (what was the penalty exposure?)
+        logger.debug(
+            "Skipping return fetch for %s (energy implementation pending)", delivery_period
+        )
+        return None, None, None
 
     def _resolve_pending_entries(self, ticker: str) -> None:
         """Resolve pending log entries for ticker at the start of a new run.
@@ -390,7 +411,7 @@ class TradingAgentsGraph:
 
         return final_state, self.process_signal(final_state["final_trade_decision"])
 
-    def _log_state(self, trade_date, final_state):
+    def _log_state_exchange(self, trade_date, final_state):
         """Log the final state to a JSON file."""
         self.log_states_dict[str(trade_date)] = {
             "company_of_interest": final_state["company_of_interest"],
@@ -424,6 +445,49 @@ class TradingAgentsGraph:
 
         # Save to file
         directory = Path(self.config["results_dir"]) / self.ticker / "TradingAgentsStrategy_logs"
+        directory.mkdir(parents=True, exist_ok=True)
+
+        log_path = directory / f"full_states_log_{trade_date}.json"
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(self.log_states_dict[str(trade_date)], f, indent=4)
+
+    def _log_state(self, trade_date, final_state):
+        self.log_states_dict[str(trade_date)] = {
+            # Power identifiers
+            "delivery_period": final_state.get("delivery_period", ""),
+            "market_area": final_state.get("market_area", ""),
+            "regime_indicator": final_state.get("regime_indicator", ""),
+            # Backward compat
+            "company_of_interest": final_state["company_of_interest"],
+            "trade_date": final_state["trade_date"],
+            # Reports
+            "market_report": final_state["market_report"],
+            "sentiment_report": final_state["sentiment_report"],
+            "news_report": final_state["news_report"],
+            "fundamentals_report": final_state["fundamentals_report"],
+            # Debates (unchanged)
+            "investment_debate_state": {
+                "bull_history": final_state["investment_debate_state"]["bull_history"],
+                "bear_history": final_state["investment_debate_state"]["bear_history"],
+                "history": final_state["investment_debate_state"]["history"],
+                "current_response": final_state["investment_debate_state"][
+                    "current_response"
+                ],
+            },
+            "trader_investment_decision": final_state["trader_investment_plan"],
+            "risk_debate_state": {
+                "aggressive_history": final_state["risk_debate_state"]["aggressive_history"],
+                "conservative_history": final_state["risk_debate_state"]["conservative_history"],
+                "neutral_history": final_state["risk_debate_state"]["neutral_history"],
+                "history": final_state["risk_debate_state"]["history"],
+                "judge_decision": final_state["risk_debate_state"]["judge_decision"],
+            },
+            "investment_plan": final_state["investment_plan"],
+            "final_trade_decision": final_state["final_trade_decision"],
+        }
+
+        # Save to file
+        directory = Path(self.config["results_dir"] + self.ticker + "TradingAgentsStrategy_logs")
         directory.mkdir(parents=True, exist_ok=True)
 
         log_path = directory / f"full_states_log_{trade_date}.json"

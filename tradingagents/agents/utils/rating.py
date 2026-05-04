@@ -17,14 +17,19 @@ from typing import Tuple
 
 # Canonical, ordered 5-tier scale (most bullish to most bearish).
 RATINGS_5_TIER: Tuple[str, ...] = (
-    # "Buy", "Overweight", "Hold", "Underweight", "Sell",
-    "Buy", "Hold", "Reduce", "Sell", "NoTrade"
+    "Buy", "Overweight", "Hold", "Underweight", "Sell",
+)
+
+RATINGS_POWER: Tuple[str, ...] = (
+    "Buy", "Sell", "Hold", "Reduce", "NoTrade",
 )
 
 _RATING_SET = {r.lower() for r in RATINGS_5_TIER}
+_POWER_SET = {r.lower() for r in RATINGS_POWER}
 
 # Matches "Rating: X" / "rating - X" / "Rating: **X**" — tolerates markdown
 # bold wrappers and either a colon or hyphen separator.
+_ACTION_LABEL_RE = re.compile(r"(?:rating|action).*?[:\-][\s*]*(\w+)", re.IGNORECASE)
 _RATING_LABEL_RE = re.compile(r"rating.*?[:\-][\s*]*(\w+)", re.IGNORECASE)
 
 
@@ -37,15 +42,23 @@ def parse_rating(text: str, default: str = "Hold") -> str:
 
     Returns a Title-cased rating string, or ``default`` if no rating word appears.
     """
+    combined_set = _RATING_SET | _POWER_SET
+
     for line in text.splitlines():
-        m = _RATING_LABEL_RE.search(line)
-        if m and m.group(1).lower() in _RATING_SET:
-            return m.group(1).capitalize()
+        m = _ACTION_LABEL_RE.search(line)
+        if m and m.group(1).lower() in combined_set:
+            word = m.group(1).lower()
+            # Normalize NoTrade capitalization
+            if word == "notrade":
+                return "NoTrade"
+            return word.capitalize()
 
     for line in text.splitlines():
         for word in line.lower().split():
             clean = word.strip("*:.,")
-            if clean in _RATING_SET:
+            if clean in combined_set:
+                if clean == "notrade":
+                    return "NoTrade"
                 return clean.capitalize()
-
+    
     return default
