@@ -11,10 +11,10 @@ console = Console()
 TICKER_INPUT_EXAMPLES = "Examples: SPY, CNC.TO, 7203.T, 0700.HK"
 
 ANALYST_ORDER = [
-    ("Market Analyst", AnalystType.MARKET),
-    ("Social Media Analyst", AnalystType.SOCIAL),
-    ("News Analyst", AnalystType.NEWS),
-    ("Fundamentals Analyst", AnalystType.FUNDAMENTALS),
+    ("Price & Technical Analyst", AnalystType.MARKET),
+    ("System State Analyst", AnalystType.SOCIAL),
+    ("Energy News & Regulatory Analyst", AnalystType.NEWS),
+    ("Weather & Forecast Analyst", AnalystType.FUNDAMENTALS),
 ]
 
 
@@ -81,7 +81,7 @@ def select_analysts() -> List[AnalystType]:
     choices = questionary.checkbox(
         "Select Your [Analysts Team]:",
         choices=[
-            questionary.Choice(display, value=value) for display, value in ANALYST_ORDER
+            questionary.Choice(display, value=value, checked=True) for display, value in ANALYST_ORDER
         ],
         instruction="\n- Press Space to select/unselect analysts\n- Press 'a' to select/unselect all\n- Press Enter when done",
         validate=lambda x: len(x) > 0 or "You must select at least one analyst.",
@@ -228,12 +228,13 @@ def select_deep_thinking_agent(provider) -> str:
     """Select deep thinking llm engine using an interactive selection."""
     return _select_model(provider, "deep")
 
+
 def select_llm_provider() -> tuple[str, str | None]:
     """Select the LLM provider and its API endpoint."""
     # (display_name, provider_key, base_url)
     PROVIDERS = [
-        ("OpenAI", "openai", "https://api.openai.com/v1"),
         ("Google", "google", None),
+        ("OpenAI", "openai", "https://api.openai.com/v1"),
         ("Anthropic", "anthropic", "https://api.anthropic.com/"),
         ("xAI", "xai", "https://api.x.ai/v1"),
         ("DeepSeek", "deepseek", "https://api.deepseek.com"),
@@ -259,7 +260,7 @@ def select_llm_provider() -> tuple[str, str | None]:
             ]
         ),
     ).ask()
-    
+
     if choice is None:
         console.print("\n[red]No LLM provider selected. Exiting...[/red]")
         exit(1)
