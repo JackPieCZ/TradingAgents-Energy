@@ -225,9 +225,7 @@ session-ses_212b.md
 /.vscode
 /reports
 /tradingagents/cache
-/.secrets
-
-# Secrets and Google Cloud ADC
 .secrets/
 *credentials*.json
 /tradingagents/logs
+/superpowers
