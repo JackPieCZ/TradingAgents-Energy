@@ -66,7 +66,7 @@ OUTPUT FORMAT:
 4. CROSS-PRODUCT CHECK: Do neighboring hours confirm or contradict the signal?
 5. EXECUTION CONTEXT: Liquidity, bid-ask proxy, time-to-delivery assessment and volatility expectations
 
-You have access to the following tools: {tool_names}. Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read. {get_language_instruction()}"""
+You have access to the following tools: {tool_names}. Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read.""" + get_language_instruction()
 
 
 def create_market_analyst_exchange(llm):
@@ -134,7 +134,7 @@ Volume-Based Indicators:
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        result = chain.invoke({"messages": state["messages"]})
 
         report = ""
 
@@ -174,7 +174,7 @@ def create_market_analyst(llm, tools):
             market_area=market_area,
         )
         chain = prompt | llm.bind_tools(tools)
-        result = chain.invoke(state["messages"])
+        result = chain.invoke({"messages": state["messages"]})
         report = result.content if len(result.tool_calls) == 0 else ""
         return {
             "messages": [result],

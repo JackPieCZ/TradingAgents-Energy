@@ -54,7 +54,7 @@ def create_fundamentals_analyst_exchange(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        result = chain.invoke({"messages": state["messages"]})
 
         report = ""
 
@@ -75,9 +75,9 @@ def create_fundamentals_analyst(llm, tools):
         market_area = state.get("market_area", "CZ")
         current_date = state.get("trade_date", "")
         system_message = (
-            f"Focus on wind and solar forecast revisions since the day-ahead auction. "
-            f"For CZ: solar is the dominant variable force (~2.5 GW installed), wind is negligible (~350 MW). "
-            f"For DE-LU: both wind (~65 GW onshore + 8 GW offshore) and solar (~80 GW) matter significantly."
+            "Focus on wind and solar forecast revisions since the day-ahead auction. "
+            "For CZ: solar is the dominant variable force (~2.5 GW installed), wind is negligible (~350 MW). "
+            "For DE-LU: both wind (~65 GW onshore + 8 GW offshore) and solar (~80 GW) matter significantly."
         )
 
         WEATHER_FORECAST_ANALYST_PROMPT = """You are the Weather & Forecast Analyst for a European electricity intraday trading desk.
@@ -137,7 +137,7 @@ You have access to the following tools: {tool_names}."""
             market_area=market_area,
         )
         chain = prompt | llm.bind_tools(tools)
-        result = chain.invoke(state["messages"])
+        result = chain.invoke({"messages": state["messages"]})
         report = result.content if len(result.tool_calls) == 0 else ""
         return {
             "messages": [result],

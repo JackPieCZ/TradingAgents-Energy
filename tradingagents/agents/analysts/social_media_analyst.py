@@ -94,7 +94,7 @@ def create_social_media_analyst_exchange(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        result = chain.invoke({"messages": state["messages"]})
 
         report = ""
 
@@ -133,7 +133,7 @@ def create_social_media_analyst(llm, tools):
             market_area=market_area,
         )
         chain = prompt | llm.bind_tools(tools)
-        result = chain.invoke(state["messages"])
+        result = chain.invoke({"messages": state["messages"]})
         report = result.content if len(result.tool_calls) == 0 else ""
         return {
             "messages": [result],
