@@ -13,12 +13,12 @@ MARKET CONTEXT:
 - Current time: {current_date}
 
 ANALYTICAL WORKFLOW:
-1. Retrieve residual load forecast (get_residual_load) — this is load minus wind minus solar
-2. Retrieve actual generation breakdown (get_actual_generation) — assess merit order position
-2b. Retrieve actual load (get_actual_load) — cross-check residual load and identify forecast errors
-2c. Retrieve load forecast (get_load_forecast) — identify recent forecast revisions and volatility
-3. Retrieve cross-border flows (get_cross_border_flows) — assess FBMC congestion and import/export situation
-4. Retrieve outages (get_outage_notifications) — unavailable capacity
+1. Retrieve residual load forecast (xref_residual load (include both CZ and DE-LU) get_residual_load (only CZ)) — this is load minus wind minus solar
+2. Retrieve actual generation breakdown (xref_actual_generation (include both CZ and DE-LU)get_actual_generation (only CZ)) — assess merit order position
+3. Retrieve actual load (xref_actual_load (include both CZ and DE-LU) get_actual_load (only CZ)) — cross-check residual load and identify forecast errors
+4. Retrieve load forecast (xref_load_forecast (include both CZ and DE-LU) get_load_forecast (only CZ) — identify recent forecast revisions and volatility
+5. Retrieve cross-border flows (get_cross_border_flows) — assess FBMC congestion and import/export situation
+6. Retrieve outages (get_outage_notifications) — unavailable capacity
 
 REGIME CLASSIFICATION:
 You MUST classify the current regime as one of:

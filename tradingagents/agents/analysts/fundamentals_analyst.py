@@ -94,8 +94,7 @@ MARKET CONTEXT:
 Few tips to guide your analysis: {system_message}
 
 ANALYTICAL WORKFLOW:
-1. Retrieve the TSO's official generation forecast (get_generation_forecast) to see what the
-   day-ahead market was priced on
+1. Retrieve the TSO's official generation forecast (xref_generation_forecast (include both CZ and DE-LU) get_generation_forecast (only CZ)) to see what the day-ahead market was priced on
 2. Retrieve forecast updates (get_forecast_updates) to see intraday forecast revisions
 3. Retrieve current weather forecasts (get_wind_forecast, get_solar_forecast)
 4. Retrieve general weather conditions (get_weather_forecast) for demand-side effects

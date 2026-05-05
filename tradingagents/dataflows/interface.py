@@ -303,7 +303,7 @@ def get_vendor(category: str, method: str = None, market_area: str = None) -> st
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     logger.info(f"Executing tool call: {method} | args: {args} | kwargs: {kwargs}")
-    
+
     category = get_category_for_method(method)
 
     # Try to extract market_area from kwargs to support market-aware routing
@@ -341,3 +341,42 @@ def route_to_vendor(method: str, *args, **kwargs):
             continue  # Catch generic energy API failures and trigger fallback
 
     raise RuntimeError(f"No available vendor for '{method}'")
+
+
+def route_to_all_vendors(method: str, *args, **kwargs) -> str:
+    """Call a tool method against ALL available vendors and return merged results.
+
+    Each vendor's output is labeled with the vendor name. If a vendor fails,
+    its section shows the error message instead of data. This is used for
+    cross-referencing — analysts can compare data from multiple sources to
+    detect discrepancies, validate signals, and improve confidence.
+
+    Returns:
+        A string with labeled sections for each vendor's response.
+    """
+    logger.info(f"Cross-referencing all vendors for: {method} | args: {args} | kwargs: {kwargs}")
+
+    if method not in VENDOR_METHODS:
+        raise ValueError(f"Method '{method}' not supported")
+
+    available_vendors = VENDOR_METHODS[method]
+    results_parts = []
+
+    for vendor_name, vendor_impl in available_vendors.items():
+        impl_func = vendor_impl[0] if isinstance(vendor_impl, list) else vendor_impl
+        try:
+            result = impl_func(*args, **kwargs)
+            results_parts.append(
+                f"# Source: {vendor_name.upper()}\n{result}"
+            )
+        except Exception as e:
+            results_parts.append(
+                f"# Source: {vendor_name.upper()}\n# ERROR: {str(e)}"
+            )
+            logger.warning(f"Vendor {vendor_name} failed for '{method}': {e}")
+
+    if not results_parts:
+        return f"# No vendors available for {method}"
+
+    header = f"# Cross-reference: {method} ({len(results_parts)} sources)\n"
+    return header + "\n\n".join(results_parts)

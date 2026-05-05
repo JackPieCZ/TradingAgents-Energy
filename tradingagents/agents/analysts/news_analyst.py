@@ -20,7 +20,7 @@ MARKET CONTEXT:
 ANALYTICAL WORKFLOW:
 1. Retrieve outage notifications (get_outage_notifications) — planned and unplanned
 2. Retrieve forcasted load data (get_load_forecast) — the day-ahead demand expectation to compare against actual
-3. Retrieve actual load data (get_actual_load) — compare with forecast for demand surprises
+3. Retrieve actual load data (xref_actual_load (for both CZ and DE-LU) get_actual_load (only CZ)) — compare with forecast for demand surprises
 4. Retrieve cross-border flow data (get_cross_border_flows) — detect import/export constraints and FBMC congestionimpacts
 
 KEY ANALYSIS:
