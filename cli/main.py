@@ -36,8 +36,8 @@ from cli.stats_handler import StatsCallbackHandler
 console = Console()
 
 app = typer.Typer(
-    name="TradingAgents",
-    help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
+    name="TradingAgents-Energy",
+    help="TradingAgents CLI: Multi-Agents LLM Energy Trading Framework",
     add_completion=True,  # Enable shell completion
 )
 
@@ -485,7 +485,7 @@ def get_user_selections():
 
     # Create welcome box content
     welcome_content = f"{welcome_ascii}\n"
-    welcome_content += f"[{BRAND_STYLE}]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/{BRAND_STYLE}]\n\n"
+    welcome_content += f"[{BRAND_STYLE}]TradingAgents: Multi-Agents LLM Energy Trading Framework - CLI[/{BRAND_STYLE}]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
     welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
     welcome_content += (
@@ -497,8 +497,8 @@ def get_user_selections():
         welcome_content,
         border_style=BRAND_COLOR,
         padding=(1, 2),
-        title="Welcome to TradingAgents",
-        subtitle="Multi-Agents LLM Financial Trading Framework",
+        title="Welcome to TradingAgents-Energy",
+        subtitle="Multi-Agents LLM Energy Trading Framework",
     )
     console.print(Align.center(welcome_box))
     console.print()
@@ -516,26 +516,59 @@ def get_user_selections():
             box_content += f"\n[dim]Default: {default}[/dim]"
         return Panel(box_content, border_style="blue", padding=(1, 2))
 
-    # Step 1: Ticker symbol
-    console.print(
-        create_question_box(
-            "Step 1: Ticker Symbol",
-            "Enter the exact ticker symbol to analyze, including exchange suffix when needed (examples: SPY, CNC.TO, 7203.T, 0700.HK)",
-            "SPY",
-        )
-    )
-    selected_ticker = get_ticker()
+    # # Step 1: Ticker symbol
+    # console.print(
+    #     create_question_box(
+    #         "Step 1: Ticker Symbol",
+    #         "Enter the exact ticker symbol to analyze, including exchange suffix when needed (examples: SPY, CNC.TO, 7203.T, 0700.HK)",
+    #         "SPY",
+    #     )
+    # )
+    # selected_ticker = get_ticker()
 
-    # Step 2: Analysis date
+    # Step 1: Delivery Date (replaces Ticker Symbol)
     default_date = datetime.datetime.now().strftime("%Y-%m-%d")
     console.print(
         create_question_box(
-            "Step 2: Analysis Date",
-            "Enter the analysis date (YYYY-MM-DD)",
+            "Step 1a: Delivery Date",
+            "Enter the delivery date to analyze (YYYY-MM-DD). "
+            "This is the date whose delivery periods the agents will assess.",
             default_date,
         )
     )
-    analysis_date = get_analysis_date()
+    delivery_date = get_delivery_date()
+
+    # Step 1b: Market Area
+    console.print(
+        create_question_box(
+            "Step 1b: Market Area",
+            "Select the bidding zone to analyze",
+        )
+    )
+    market_area = select_market_area()
+
+    # # Step 2: Analysis date
+    # default_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    # console.print(
+    #     create_question_box(
+    #         "Step 2: Analysis Date",
+    #         "Enter the analysis date (YYYY-MM-DD)",
+    #         default_date,
+    #     )
+    # )
+    # analysis_date = get_analysis_date()
+
+    # Step 2: Trade Timestamp
+    default_timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
+    console.print(
+        create_question_box(
+            "Step 2: Trade Timestamp",
+            "Enter the analysis/trading timestamp (YYYY-MM-DDTHH:MM). "
+            "This is 'now' — the point from which the agents analyze.",
+            default_timestamp,
+        )
+    )
+    trade_timestamp = get_trade_timestamp()
 
     # Step 3: Output language
     console.print(
@@ -614,8 +647,11 @@ def get_user_selections():
         anthropic_effort = ask_anthropic_effort()
 
     return {
-        "ticker": selected_ticker,
-        "analysis_date": analysis_date,
+        # "ticker": selected_ticker,
+        "delivery_date": delivery_date,
+        "market_area": market_area,
+        # "analysis_date": analysis_date,
+        "trade_timestamp": trade_timestamp,
         "analysts": selected_analysts,
         "research_depth": selected_research_depth,
         "llm_provider": selected_llm_provider.lower(),
@@ -633,6 +669,30 @@ def get_ticker():
     """Get ticker symbol from user input."""
     return typer.prompt("", default="SPY")
 
+def get_delivery_date():
+    """Get delivery date from user input."""
+    while True:
+        date_str = typer.prompt(
+            "", default=datetime.datetime.now().strftime("%Y-%m-%d")
+        )
+        try:
+            datetime.datetime.strptime(date_str, "%Y-%m-%d")
+            return date_str
+        except ValueError:
+            console.print("[red]Invalid format. Use YYYY-MM-DD.[/red]")
+
+def select_market_area():
+    """Select market area (bidding zone)."""
+    areas = {"1": "CZ", "2": "DE-LU"}
+    console.print("  1. CZ  (Czech Republic — OTE)")
+    console.print("  2. DE-LU  (Germany/Luxembourg — EPEX)")
+    choice = typer.prompt("Select", default="1")
+    return areas.get(choice, "CZ")
+
+def get_trade_timestamp():
+    """Get trade timestamp from user input."""
+    default = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
+    return typer.prompt("", default=default)
 
 def get_analysis_date():
     """Get the analysis date from user input."""
@@ -949,6 +1009,9 @@ def run_analysis(checkpoint: bool = False):
 
     # Create config with selected research depth
     config = DEFAULT_CONFIG.copy()
+    config["market_area"] = selections["market_area"]
+    config["delivery_date"] = selections["delivery_date"]
+    config["trade_timestamp"] = selections["trade_timestamp"]
     config["max_debate_rounds"] = selections["research_depth"]
     config["max_risk_discuss_rounds"] = selections["research_depth"]
     config["quick_think_llm"] = selections["shallow_thinker"]
@@ -984,7 +1047,11 @@ def run_analysis(checkpoint: bool = False):
     start_time = time.time()
 
     # Create result directory
-    results_dir = Path(config["results_dir"]) / selections["ticker"] / selections["analysis_date"]
+    # results_dir = Path(config["results_dir"]) / selections["ticker"] / selections["analysis_date"]
+    results_dir = (Path(config["results_dir"]) 
+                   / selections["market_area"] 
+                   / selections["delivery_date"] 
+                   / selections["trade_timestamp"].replace(":", ""))
     results_dir.mkdir(parents=True, exist_ok=True)
     report_dir = results_dir / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -1058,10 +1125,17 @@ def run_analysis(checkpoint: bool = False):
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
         # Add initial messages
-        message_buffer.add_message("System", f"Selected ticker: {selections['ticker']}")
-        message_buffer.add_message(
-            "System", f"Analysis date: {selections['analysis_date']}"
-        )
+        # message_buffer.add_message("System", f"Selected ticker: {selections['ticker']}")
+        # message_buffer.add_message(
+        #     "System", f"Analysis date: {selections['analysis_date']}"
+        # )
+        # message_buffer.add_message(
+        #     "System",
+        #     f"Selected analysts: {', '.join(analyst.value for analyst in selections['analysts'])}",
+        # )
+        message_buffer.add_message("System", f"Delivery date: {selections['delivery_date']}")
+        message_buffer.add_message("System", f"Market area: {selections['market_area']}")
+        message_buffer.add_message("System", f"Trade timestamp: {selections['trade_timestamp']}")
         message_buffer.add_message(
             "System",
             f"Selected analysts: {', '.join(analyst.value for analyst in selections['analysts'])}",
@@ -1074,14 +1148,23 @@ def run_analysis(checkpoint: bool = False):
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
         # Create spinner text
+        # spinner_text = (
+        #     f"Analyzing {selections['ticker']} on {selections['analysis_date']}..."
+        # )
         spinner_text = (
-            f"Analyzing {selections['ticker']} on {selections['analysis_date']}..."
+        f"Analyzing {selections['market_area']} delivery {selections['delivery_date']} "
+        f"as of {selections['trade_timestamp']}..."
         )
         update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
         # Initialize state and get graph args with callbacks
+        # init_agent_state = graph.propagator.create_initial_state(
+        #     selections["ticker"], selections["analysis_date"]
+        # )
         init_agent_state = graph.propagator.create_initial_state(
-            selections["ticker"], selections["analysis_date"]
+            delivery_period=selections["delivery_date"],
+            trade_timestamp=selections["trade_timestamp"],
+            market_area=selections["market_area"],
         )
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
@@ -1214,14 +1297,21 @@ def run_analysis(checkpoint: bool = False):
     save_choice = typer.prompt("Save report?", default="Y").strip().upper()
     if save_choice in ("Y", "YES"):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
+        # default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
+        default_path = (Path.cwd() / "reports" 
+                    / f"{selections['market_area']}_{selections['delivery_date']}_{timestamp}")
         save_path_str = typer.prompt(
             "Save path (press Enter for default)",
             default=str(default_path)
         ).strip()
         save_path = Path(save_path_str)
         try:
-            report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
+            # report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
+            report_file = save_report_to_disk(
+                final_state, 
+                f"{selections['market_area']}_{selections['delivery_date']}", 
+                save_path,
+            )
             console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
             console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
         except Exception as e:
