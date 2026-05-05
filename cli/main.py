@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 import datetime
+from regex import B
 import typer
 from pathlib import Path
 from functools import wraps
@@ -39,6 +40,12 @@ app = typer.Typer(
     help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
     add_completion=True,  # Enable shell completion
 )
+
+BRAND_COLOR = "#F24F00"    # PANTONE 172
+BRAND_STYLE = f"bold {BRAND_COLOR}"
+
+# BRAND_COLOR = "green"
+# BRAND_STYLE = f"bold {BRAND_COLOR}"
 
 
 # Create a deque to store recent messages with a maximum length
@@ -267,10 +274,10 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     # Header with welcome message
     layout["header"].update(
         Panel(
-            "[bold green]Welcome to TradingAgents CLI[/bold green]\n"
-            "[dim]© [Tauric Research](https://github.com/TauricResearch)[/dim]",
-            title="Welcome to TradingAgents",
-            border_style="green",
+            f"[{BRAND_STYLE}]Welcome to TradingAgents-Energy CLI[/{BRAND_STYLE}]\n"
+            f"[dim]© [Tauric Research & Jakub Kolar](https://github.com/JackPieCZ/TradingAgents-private)[/dim]",
+            title="Welcome to TradingAgents-Energy CLI",
+            border_style=BRAND_COLOR,
             padding=(1, 2),
             expand=True,
         )
@@ -364,7 +371,7 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
         padding=(0, 1),  # Add some padding between columns
     )
     messages_table.add_column("Time", style="cyan", width=8, justify="center")
-    messages_table.add_column("Type", style="green", width=10, justify="center")
+    messages_table.add_column("Type", style=BRAND_COLOR, width=10, justify="center")
     messages_table.add_column(
         "Content", style="white", no_wrap=False, ratio=1
     )  # Make content column expand
@@ -414,7 +421,7 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
             Panel(
                 Markdown(message_buffer.current_report),
                 title="Current Report",
-                border_style="green",
+                border_style=BRAND_COLOR,
                 padding=(1, 2),
             )
         )
@@ -423,7 +430,7 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
             Panel(
                 "[italic]Waiting for analysis report...[/italic]",
                 title="Current Report",
-                border_style="green",
+                border_style=BRAND_COLOR,
                 padding=(1, 2),
             )
         )
@@ -478,17 +485,17 @@ def get_user_selections():
 
     # Create welcome box content
     welcome_content = f"{welcome_ascii}\n"
-    welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
+    welcome_content += f"[{BRAND_STYLE}]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/{BRAND_STYLE}]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
     welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
     welcome_content += (
-        "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
+        "[dim]Built by [Tauric Research & Jakub Kolar](https://github.com/JackPieCZ/TradingAgents-private)[/dim]"
     )
 
     # Create and center the welcome box
     welcome_box = Panel(
         welcome_content,
-        border_style="green",
+        border_style=BRAND_COLOR,
         padding=(1, 2),
         title="Welcome to TradingAgents",
         subtitle="Multi-Agents LLM Financial Trading Framework",
@@ -739,7 +746,7 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path):
 def display_complete_report(final_state):
     """Display the complete analysis report sequentially (avoids truncation)."""
     console.print()
-    console.print(Rule("Complete Analysis Report", style="bold green"))
+    console.print(Rule("Complete Analysis Report", style=BRAND_STYLE))
 
     # I. Analyst Team Reports
     analysts = []
@@ -793,7 +800,7 @@ def display_complete_report(final_state):
 
         # V. Portfolio Manager Decision
         if risk.get("judge_decision"):
-            console.print(Panel("[bold]V. Portfolio Manager Decision[/bold]", border_style="green"))
+            console.print(Panel("[bold]V. Portfolio Manager Decision[/bold]", border_style=BRAND_COLOR))
             console.print(Panel(Markdown(risk["judge_decision"]), title="Portfolio Manager", border_style="blue", padding=(1, 2)))
 
 
