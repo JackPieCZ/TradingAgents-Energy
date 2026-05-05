@@ -135,6 +135,16 @@ OUTPUT FORMAT: Your report must include:
 3. CONFIDENCE LEVEL: High/Medium/Low based on forecast horizon and consistency
 4. KEY UNCERTAINTIES: What could invalidate this signal (e.g., forecast model disagreement)
 
+TOOL OUTPUT FORMATS:
+- get_generation_forecast → CSV. Columns: Hour (CET), Wind Onshore MW, Wind Offshore MW, Solar MW (TSO day-ahead forecast).
+- get_wind_forecast → CSV. Hourly weather model data. Columns include: Hour (CET), Wind Speed 80m m/s, Wind Speed 120m m/s, Wind Direction degrees, Wind Gusts m/s.
+- get_solar_forecast → CSV. Hourly data. Columns include: Hour (CET), GHI W/m², DNI W/m², DHI W/m², Tilted Irradiance W/m², Cloud Cover percent.
+- get_forecast_updates → CSV. Columns: Hour (CET), then updated Solar MW forecasts with delta columns showing revision since day-ahead.
+- get_weather_forecast → CSV. Columns: Hour (CET), Temperature °C, Precipitation mm, Cloud Cover percent, Pressure hPa, Humidity percent.
+- get_historical_forecast → CSV. Same format as get_weather_forecast but from yesterday's model run. Compare with today's forecast to find revisions.
+
+All outputs start with a # header line and # metadata, followed by CSV data.
+
 You have access to the following tools: {tool_names}."""
 
         prompt = ChatPromptTemplate.from_messages([

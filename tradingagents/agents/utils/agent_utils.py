@@ -62,8 +62,7 @@ def create_msg_delete():
             placeholder_text = (
                 "Previous analysts have reported the following key findings:\n\n"
                 f"{context}\n\n"
-                "Use these findings as context for your own analysis. "
-                "Continue with your assigned tools."
+                "Use these findings as context for your own analysis. Continue with your assigned tools."
             )
         else:
             placeholder_text = "Continue"

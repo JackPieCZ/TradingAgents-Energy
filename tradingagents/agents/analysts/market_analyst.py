@@ -73,6 +73,12 @@ OUTPUT FORMAT:
 4. CROSS-PRODUCT CHECK: Do neighboring hours confirm or contradict the signal?
 5. EXECUTION CONTEXT: Liquidity, bid-ask proxy, time-to-delivery assessment and volatility expectations
 
+TOOL OUTPUT FORMATS:
+- get_day_ahead_prices → CSV header + rows. Columns: Hour (CET), Price EUR/MWh. One row per delivery hour.
+- get_intraday_prices → CSV header + rows. Columns: Hour (CET), Price EUR/MWh (VWAP), Volume MWh, plus additional spread/range metrics.
+- get_intraday_auction_prices → CSV header + rows. Columns: Hour (CET), Auction (IDA1/IDA2/IDA3), Price EUR/MWh, Volume MWh, Import MWh, Export MWh, Saldo MWh.
+- get_imbalance_data → CSV header + rows. Columns vary by source but typically include: Hour, Imbalance Volume MW, Imbalance Price EUR/MWh.
+
 You have access to the following tools: {tool_names}. Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read.""" + get_language_instruction()
 
 

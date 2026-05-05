@@ -68,6 +68,16 @@ OUTPUT FORMAT:
 3. DIRECTIONAL BIAS: Does system state favor higher or lower prices vs day-ahead?
 4. MERIT ORDER ASSESSMENT: Is the merit order curve steep or flat at current operating point?
 
+TOOL OUTPUT FORMATS:
+- get_residual_load → CSV. Columns: Hour (CET), Total Load MW, Wind MW, Solar MW, Residual Load MW. Residual = Total - Wind - Solar.
+- get_actual_generation → CSV. Columns: Hour (CET) and one column per fuel type (e.g. Lignite MW, Nuclear MW, Gas MW, Wind MW, Solar MW, etc.).
+- get_actual_load → CSV. Columns: Hour (CET), Actual Load MW. Compare against day-ahead forecast for demand surprises.
+- get_load_forecast → CSV. Columns: Hour (CET), Forecasted Load MW.
+- get_cross_border_flows → CSV. Columns: Hour (CET), then one column per border (e.g. CZ→DE MW, DE→CZ MW). Positive = export, Negative = import (convention may vary).
+- get_outage_notifications → Text summary of planned/unplanned outages with plant name, type, MW unavailable, start/end times.
+
+All outputs start with a # header line and # metadata, followed by CSV data.
+
 You have access to the following tools: {tool_names}."""
 
 

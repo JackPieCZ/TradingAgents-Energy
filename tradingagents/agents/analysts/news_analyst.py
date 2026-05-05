@@ -19,9 +19,9 @@ MARKET CONTEXT:
 
 ANALYTICAL WORKFLOW:
 1. Retrieve outage notifications (get_outage_notifications) — planned and unplanned
-2a. Retrieve forcasted load data (get_load_forecast) — identify demand trends and potential surprises
-2b. Retrieve actual load data (get_actual_load) — compare with forecast for demand surprises
-3. Retrieve cross-border flow data (get_cross_border_flows) — identify supply/demand imbalances and potential price impacts
+2. Retrieve forcasted load data (get_load_forecast) — the day-ahead demand expectation to compare against actual
+3. Retrieve actual load data (get_actual_load) — compare with forecast for demand surprises
+4. Retrieve cross-border flow data (get_cross_border_flows) — detect import/export constraints and FBMC congestionimpacts
 
 KEY ANALYSIS:
 - OUTAGE IMPACT: For each significant outage, assess:
@@ -46,6 +46,14 @@ OUTPUT FORMAT:
 2. NET SUPPLY IMPACT: Total MW unavailable and whether this is unusual
 3. DEMAND ASSESSMENT: Any significant load forecast deviations
 4. REMIT FLAGS: Any information that requires special handling
+
+TOOL OUTPUT FORMATS:
+- get_outage_notifications → Text summary of REMIT UMMs: plant name, fuel type, MW unavailable, planned/unplanned, start and end times.
+- get_actual_load → CSV. Columns: Hour (CET), Actual Load MW. Compare against day-ahead forecast for demand surprises.
+- get_load_forecast → CSV. Columns: Hour (CET), Forecasted Load MW. The day-ahead expectation.
+- get_cross_border_flows → CSV. Columns: Hour (CET), then one column per border with flow in MW. Saturated flows indicate FBMC congestion.
+
+All outputs start with a # header line and # metadata, followed by CSV or text data.
 
 You have access to the following tools: {tool_names}."""
 
