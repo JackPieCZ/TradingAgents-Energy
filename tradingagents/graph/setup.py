@@ -50,10 +50,10 @@ class GraphSetup:
 
         Args:
             selected_analysts (list): List of analyst types to include. Options are:
-                - "market": Market analyst
-                - "social": Social media analyst
-                - "news": News analyst
-                - "fundamentals": Fundamentals analyst
+                - "market": "Price & Technical Analyst",
+                - "social": "System State Analyst",
+                - "news": "Energy News & Regulatory Analyst",
+                - "fundamentals": "Weather & Forecast Analyst",
         """
         if len(selected_analysts) == 0:
             raise ValueError("Trading Agents Graph Setup Error: no analysts selected!")
