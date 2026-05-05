@@ -96,7 +96,7 @@ class GraphSetup:
             analyst_nodes["fundamentals"] = create_fundamentals_analyst(
                 self.quick_thinking_llm, [
                     get_wind_forecast, get_solar_forecast,
-                    get_generation_forecast, #get_forecast_updates,
+                    get_generation_forecast, get_forecast_updates,
                     get_weather_forecast, get_historical_forecast
                 ]
             )
