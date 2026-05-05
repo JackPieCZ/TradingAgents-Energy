@@ -19,7 +19,9 @@ MARKET CONTEXT:
 
 ANALYTICAL WORKFLOW:
 1. Retrieve outage notifications (get_outage_notifications) — planned and unplanned
-2. Retrieve actual load data (get_actual_load) — compare with forecast for demand surprises
+2a. Retrieve forcasted load data (get_load_forecast) — identify demand trends and potential surprises
+2b. Retrieve actual load data (get_actual_load) — compare with forecast for demand surprises
+3. Retrieve cross-border flow data (get_cross_border_flows) — identify supply/demand imbalances and potential price impacts
 
 KEY ANALYSIS:
 - OUTAGE IMPACT: For each significant outage, assess:

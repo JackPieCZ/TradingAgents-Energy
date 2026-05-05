@@ -25,9 +25,3 @@ def get_cross_border_flows(delivery_date: str, market_area: str = "CZ") -> str:
     """Fetch cross-border physical power flows with neighboring bidding zones.
     Positive = import into zone, Negative = export. Includes NTC capacity where available."""
     return route_to_vendor("get_cross_border_flows", delivery_date=delivery_date, market_area=market_area)
-
-@tool
-def get_outages(delivery_date: str, market_area: str = "CZ") -> str:
-    """Fetch planned and unplanned generation unit outages (REMIT UMMs).
-    Large outages tighten supply and can push prices up significantly."""
-    return route_to_vendor("get_outages", delivery_date=delivery_date, market_area=market_area)

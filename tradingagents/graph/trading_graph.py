@@ -16,11 +16,11 @@ from tradingagents.agents.utils.weather_tools import (
 )
 from tradingagents.agents.utils.system_data_tools import (
     get_residual_load, get_actual_generation,
-    get_load_forecast, get_cross_border_flows, get_outages
+    get_load_forecast, get_cross_border_flows
 )
 from tradingagents.agents.utils.energy_price_tools import (
     get_day_ahead_prices, get_intraday_prices,
-    get_intraday_auction_prices, get_imbalance_data
+    get_intraday_auction_prices, get_balancing_data
 )
 from tradingagents.dataflows.config import set_config
 from tradingagents.agents.utils.agent_states import (
@@ -176,15 +176,15 @@ class TradingAgentsGraph:
                     # # Technical indicators
                     # get_indicators,
                     get_day_ahead_prices, get_intraday_prices,
-                    get_intraday_auction_prices, get_imbalance_data
+                    get_intraday_auction_prices, get_balancing_data
                 ]
             ),
             "social": ToolNode(  # System State Analyst
                 [
                     # # News tools for social media analysis
                     # get_news,
-                    get_residual_load, get_actual_generation,
-                    get_load_forecast, get_cross_border_flows, get_outages
+                    get_residual_load, get_actual_generation, get_actual_load,
+                    get_load_forecast, get_cross_border_flows, get_outage_notifications
                 ]
             ),
             "news": ToolNode(  # Energy News & Regulatory Analyst
@@ -193,7 +193,7 @@ class TradingAgentsGraph:
                     # get_news,
                     # get_global_news,
                     # get_insider_transactions,
-                    get_outage_notifications, get_actual_load
+                    get_outage_notifications, get_actual_load, get_load_forecast, get_cross_border_flows
                 ]
             ),
             "fundamentals": ToolNode(  # Weather & Forecast Analyst
@@ -204,7 +204,7 @@ class TradingAgentsGraph:
                     # get_cashflow,
                     # get_income_statement,
                     get_wind_forecast, get_solar_forecast,
-                    get_generation_forecast, get_forecast_updates,
+                    get_generation_forecast, #get_forecast_updates,
                     get_weather_forecast, get_historical_forecast
                 ]
             ),

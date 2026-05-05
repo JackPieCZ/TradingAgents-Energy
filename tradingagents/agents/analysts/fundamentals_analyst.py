@@ -96,11 +96,11 @@ Few tips to guide your analysis: {system_message}
 ANALYTICAL WORKFLOW:
 1. Retrieve the TSO's official generation forecast (get_generation_forecast) to see what the
    day-ahead market was priced on
-2. Retrieve current weather forecasts (get_wind_forecast, get_solar_forecast)
-3. Retrieve forecast updates (get_forecast_updates) to see intraday forecast revisions
-4. If available, retrieve the historical forecast (get_historical_forecast) to compare
+2. Retrieve forecast updates (get_forecast_updates) to see intraday forecast revisions
+3. Retrieve current weather forecasts (get_wind_forecast, get_solar_forecast)
+4. Retrieve general weather conditions (get_weather_forecast) for demand-side effects
+5. Retrieve the historical forecast (get_historical_forecast) to compare
    yesterday's forecast vs today's for the delivery date
-5. Retrieve general weather conditions (get_weather_forecast) for demand-side effects
 
 CRITICAL ANALYSIS FRAMEWORK:
 - A POSITIVE wind/solar forecast error (MORE renewable than DA forecast expected):

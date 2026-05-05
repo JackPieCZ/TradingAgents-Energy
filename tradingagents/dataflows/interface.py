@@ -42,7 +42,6 @@ from .entsoe_client import (
 from .ote_client import (
     get_dam_prices as ote_da_prices,
     get_intraday_prices as ote_id_prices,
-    get_intraday_prices_period as ote_id_prices_period,
     get_ida_prices as ote_ida_prices,
     get_imbalance_settlement as ote_imbalance,
 )
@@ -111,7 +110,6 @@ TOOLS_CATEGORIES = {
         "tools": [
             "get_day_ahead_prices",
             "get_intraday_prices",
-            "get_intraday_prices_period",
             "get_intraday_auction_prices",
         ]
     },
@@ -123,7 +121,7 @@ TOOLS_CATEGORIES = {
             "get_load_forecast",
             "get_actual_load",
             "get_cross_border_flows",
-            "get_outages",
+            "get_outage_notifications",
             "get_balancing_data",
             "get_residual_load",
         ]
@@ -204,15 +202,12 @@ VENDOR_METHODS = {
         "entsoe": entsoe_da_prices,
         "ote": ote_da_prices,
         "smard": dayahead_market_prices,
-        "mock": mock_da_prices,
+        # "mock": mock_da_prices,
     },
     "get_intraday_prices": {
         # "entsoe": entsoe_id_prices,
         "ote": ote_id_prices,
-        "mock": mock_id_prices,
-    },
-    "get_intraday_prices_period": {
-        "ote": ote_id_prices_period,
+        # "mock": mock_id_prices,
     },
     "get_intraday_auction_prices": {
         # "entsoe": entsoe_id_prices,
@@ -223,7 +218,7 @@ VENDOR_METHODS = {
     "get_generation_forecast": {
         "entsoe": entsoe_wind_solar_forecast,
         "smard": smard_generation_forecast,
-        "mock": mock_wind_solar,
+        # "mock": mock_wind_solar,
     },
     "get_actual_generation": {
         "entsoe": entsoe_actual_generation,
@@ -232,7 +227,7 @@ VENDOR_METHODS = {
     "get_load_forecast": {
         "entsoe": entsoe_load_forecast,
         "smard": smard_load_forecast,
-        "mock": mock_load,
+        # "mock": mock_load,
     },
     "get_actual_load": {
         "entsoe": entsoe_actual_load,
@@ -240,9 +235,6 @@ VENDOR_METHODS = {
     },
     "get_cross_border_flows": {
         "entsoe": entsoe_crossborder,
-    },
-    "get_outages": {
-        "entsoe": entsoe_outages,
     },
     "get_outage_notifications": {
         "entsoe": entsoe_outages,
@@ -254,13 +246,13 @@ VENDOR_METHODS = {
     "get_residual_load": {
         "entsoe": entsoe_residual_load,
         "smard": smard_residual_load,
-        "mock": mock_residual_load,
+        # "mock": mock_residual_load,
     },
 
     # weather_data (energy)
     "get_weather_forecast": {
         "openmeteo": openmeteo_weather,
-        "mock": mock_weather,
+        # "mock": mock_weather,
     },
     "get_solar_forecast": {
         "openmeteo": openmeteo_solar,

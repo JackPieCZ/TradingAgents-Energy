@@ -237,11 +237,8 @@ if __name__ == "__main__":
     main()
 
 """
-Reference output
+Reference output with [:LIMIT=1000]:
 Testing APIs for date: 2026-05-04, market area: CZ
-ENTSOE_API_KEY set: True
-Deleted 4 parquet files from the cache.
-Deleted Open-Meteo SQLite cache.
 
 ============================================================
   Open-Meteo (CZ)

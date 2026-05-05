@@ -12,11 +12,11 @@ from .conditional_logic import ConditionalLogic
 
 from tradingagents.agents.utils.energy_price_tools import (
     get_day_ahead_prices, get_intraday_prices,
-    get_intraday_auction_prices, get_imbalance_data
+    get_intraday_auction_prices, get_balancing_data
 )
 from tradingagents.agents.utils.system_data_tools import (
     get_residual_load, get_actual_generation,
-    get_load_forecast, get_cross_border_flows, get_outages
+    get_load_forecast, get_cross_border_flows
 )
 from tradingagents.agents.utils.weather_tools import (
     get_wind_forecast, get_solar_forecast,
@@ -67,7 +67,7 @@ class GraphSetup:
             analyst_nodes["market"] = create_market_analyst(
                 self.quick_thinking_llm, [
                     get_day_ahead_prices, get_intraday_prices,
-                    get_intraday_auction_prices, get_imbalance_data
+                    get_intraday_auction_prices, get_balancing_data
                 ]
             )
             delete_nodes["market"] = create_msg_delete()
@@ -76,8 +76,8 @@ class GraphSetup:
         if "social" in selected_analysts:
             analyst_nodes["social"] = create_social_media_analyst(
                 self.quick_thinking_llm, [
-                    get_residual_load, get_actual_generation,
-                    get_load_forecast, get_cross_border_flows, get_outages
+                    get_residual_load, get_actual_generation, get_actual_load,
+                    get_load_forecast, get_cross_border_flows, get_outage_notifications
                 ]
             )
             delete_nodes["social"] = create_msg_delete()
@@ -86,7 +86,7 @@ class GraphSetup:
         if "news" in selected_analysts:
             analyst_nodes["news"] = create_news_analyst(
                 self.quick_thinking_llm, [
-                    get_outage_notifications, get_actual_load
+                    get_outage_notifications, get_actual_load, get_load_forecast, get_cross_border_flows
                 ]
             )
             delete_nodes["news"] = create_msg_delete()
@@ -96,7 +96,7 @@ class GraphSetup:
             analyst_nodes["fundamentals"] = create_fundamentals_analyst(
                 self.quick_thinking_llm, [
                     get_wind_forecast, get_solar_forecast,
-                    get_generation_forecast, get_forecast_updates,
+                    get_generation_forecast, #get_forecast_updates,
                     get_weather_forecast, get_historical_forecast
                 ]
             )

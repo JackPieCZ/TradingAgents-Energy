@@ -23,7 +23,7 @@ ANALYTICAL WORKFLOW:
 1. Retrieve day-ahead prices (get_day_ahead_prices) — the price anchor
 2. Retrieve intraday continuous prices (get_intraday_prices) — current market pricing
 3. Retrieve IDA auction prices (get_intraday_auction_prices) — auction-based price discovery
-4. Retrieve imbalance data (get_imbalance_data) — penalty price for unhedged positions
+4. Retrieve imbalance data (get_balancing_data) — penalty price for unhedged positions
 
 KEY PRICE ANALYSIS:
 - SPREAD TO DAY-AHEAD: intraday_price - day_ahead_price for each delivery hour

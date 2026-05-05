@@ -22,7 +22,7 @@ def get_intraday_auction_prices(delivery_date: str, market_area: str = "CZ") -> 
     return route_to_vendor("get_intraday_auction_prices", delivery_date=delivery_date, market_area=market_area)
 
 @tool
-def get_imbalance_data(delivery_date: str, market_area: str = "CZ") -> str:
+def get_balancing_data(delivery_date: str, market_area: str = "CZ") -> str:
     """Fetch imbalance settlement prices and volumes. Imbalance price is
     the penalty for positions not closed before gate closure."""
     return route_to_vendor("get_balancing_data", delivery_date=delivery_date, market_area=market_area)

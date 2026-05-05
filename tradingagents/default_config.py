@@ -54,20 +54,22 @@ DEFAULT_CONFIG = {
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
         # Energy-specific overrides
+        "get_outage_notifications": "entsoe",
+        "get_actual_load": "entsoe",#,smard",
         "get_day_ahead_prices": "entsoe,ote",
-        "get_intraday_prices": "entsoe,ote",
-        "get_intraday_auction_prices": "entsoe",
-        "get_residual_load": "entsoe,smard",
-        "get_generation_forecast": "entsoe",
-        "get_actual_generation": "smard,entsoe",
-        "get_load_forecast": "entsoe",
+        "get_intraday_prices": "ote",
+        "get_intraday_auction_prices": "ote",
+        "get_balancing_data": "entsoe,ote",
+        "get_residual_load": "entsoe,ote",
+        "get_actual_generation": "entsoe",#,smard",
+        "get_load_forecast": "entsoe",#,smard",
         "get_cross_border_flows": "entsoe",
-        "get_outages": "entsoe",
-        "get_balancing_data": "entsoe",
+        "get_historical_forecast": "openmeteo",
         "get_wind_forecast": "openmeteo",
         "get_solar_forecast": "openmeteo",
-        "get_weather_forecast": "openmeteo",
+        "get_generation_forecast": "entsoe",#,smard",
         "get_forecast_updates": "entsoe",
+        "get_weather_forecast": "openmeteo",
     },
     # Energy market specific configuration
     "market_area": "CZ",  # Primary bidding zone ("DE-LU" or "CZ")
