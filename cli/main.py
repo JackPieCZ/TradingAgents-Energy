@@ -255,7 +255,7 @@ def create_layout():
         Layout(name="footer", size=3),
     )
     layout["main"].split_column(
-        Layout(name="upper", ratio=3), Layout(name="analysis", ratio=5)
+        Layout(name="upper", ratio=1), Layout(name="analysis", ratio=1)
     )
     layout["upper"].split_row(
         Layout(name="progress", ratio=2), Layout(name="messages", ratio=3)
@@ -293,17 +293,14 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
         padding=(0, 2),  # Add horizontal padding
         expand=True,  # Make table expand to fill available space
     )
-    progress_table.add_column("Team", style="cyan", justify="center", width=20)
-    progress_table.add_column("Agent", style="green", justify="center", width=20)
+    progress_table.add_column("Team", style="cyan", justify="center", width=18)
+    progress_table.add_column("Agent", style="green", justify="center", width=26)
     progress_table.add_column("Status", style="yellow", justify="center", width=20)
 
     # Group agents by team - filter to only include agents in agent_status
     all_teams = {
         "Analyst Team": [
-            "Price & Technical Analyst",
-            "System State Analyst",
-            "Energy News & Regulatory Analyst",
-            "Weather & Forecast Analyst",
+            ANALYST_AGENT_NAMES[key] for key in ANALYST_ORDER
         ],
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
         "Trading Team": ["Trader"],
@@ -321,6 +318,9 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
     for team, agents in teams.items():
         # Add first agent with team name
         first_agent = agents[0]
+        # Format the agent name for display by stripping ' Analyst' if present
+        first_agent_display = first_agent.replace(" Analyst", "")
+        
         status = message_buffer.agent_status.get(first_agent, "pending")
         if status == "in_progress":
             spinner = Spinner(
@@ -334,10 +334,13 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
                 "error": "red",
             }.get(status, "white")
             status_cell = f"[{status_color}]{status}[/{status_color}]"
-        progress_table.add_row(team, first_agent, status_cell)
+        progress_table.add_row(team, first_agent_display, status_cell)
 
         # Add remaining agents in team
         for agent in agents[1:]:
+            # Format the agent name for display
+            agent_display = agent.replace(" Analyst", "")
+            
             status = message_buffer.agent_status.get(agent, "pending")
             if status == "in_progress":
                 spinner = Spinner(
@@ -351,13 +354,13 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
                     "error": "red",
                 }.get(status, "white")
                 status_cell = f"[{status_color}]{status}[/{status_color}]"
-            progress_table.add_row("", agent, status_cell)
+            progress_table.add_row("", agent_display, status_cell)
 
         # Add horizontal line after each team
-        progress_table.add_row("─" * 20, "─" * 20, "─" * 20, style="dim")
+        # progress_table.add_row("─" * 20, "─" * 20, "─" * 20, style="dim")
 
     layout["progress"].update(
-        Panel(progress_table, title="Progress", border_style="cyan", padding=(1, 2))
+        Panel(progress_table, title="Progress", border_style="cyan", padding=(0, 2))
     )
 
     # Messages panel showing recent messages and tool calls
@@ -597,7 +600,7 @@ def get_user_selections():
     )
     selected_analysts = select_analysts()
     console.print(
-        f"[{BRAND_COLOR}]Selected analysts:[/{BRAND_COLOR}] {', '.join(analyst.value for analyst in selected_analysts)}"
+        f"[{BRAND_COLOR}]Selected analysts:[/{BRAND_COLOR}] {', '.join(analyst.name.lower().capitalize() for analyst in selected_analysts)}"
     )
 
     # Step 5: Research depth
@@ -608,7 +611,7 @@ def get_user_selections():
     )
     selected_research_depth = select_research_depth()
     console.print(
-        f"[{BRAND_COLOR}]Selected research depth:[/{BRAND_COLOR}] {selected_research_depth.value}"
+        f"[{BRAND_COLOR}]Selected research depth:[/{BRAND_COLOR}] {selected_research_depth}"
     )
 
     # Step 6: LLM Provider
@@ -1089,7 +1092,7 @@ def run_analysis(checkpoint: bool = False):
     stats_handler = StatsCallbackHandler()
 
     # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
-    selected_set = {analyst.value for analyst in selections["analysts"]}
+    selected_set = {analyst.name.lower() for analyst in selections["analysts"]}
     selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
 
     # Initialize the graph with callbacks bound to LLMs
@@ -1194,19 +1197,20 @@ def run_analysis(checkpoint: bool = False):
         # )
         # message_buffer.add_message(
         #     "System",
-        #     f"Selected analysts: {', '.join(analyst.value for analyst in selections['analysts'])}",
+        #     f"Selected analysts: {', '.join(analyst.name.lower().capitalize() for analyst in selections['analysts'])}",
         # )
         message_buffer.add_message("System", f"Delivery date: {selections['delivery_date']}")
         message_buffer.add_message("System", f"Market area: {selections['market_area']}")
         message_buffer.add_message("System", f"Trade timestamp: {selections['trade_timestamp']}")
         message_buffer.add_message(
             "System",
-            f"Selected analysts: {', '.join(analyst.value for analyst in selections['analysts'])}",
+            f"Selected analysts: {', '.join(analyst.name.lower().capitalize() for analyst in selections['analysts'])}",
         )
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
         # Update agent status to in_progress for the first analyst
-        first_analyst = f"{selections['analysts'][0].value.capitalize()} Analyst"
+        first_analyst_key = selections['analysts'][0].name.lower()
+        first_analyst = ANALYST_AGENT_NAMES.get(first_analyst_key, f"{first_analyst_key.capitalize()} Analyst")
         message_buffer.update_agent_status(first_analyst, "in_progress")
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
@@ -1343,7 +1347,7 @@ def run_analysis(checkpoint: bool = False):
             message_buffer.update_agent_status(agent, "completed")
 
         message_buffer.add_message(
-            "System", f"Completed analysis for {selections['analysis_date']}"
+            "System", f"Completed analysis for {selections['delivery_date']}"
         )
 
         # Update final report sections

@@ -141,12 +141,13 @@ def create_portfolio_manager(llm):
         3. YOUR DECISION must include:
         - Regime assessment: Normal/Stressed/Oversupplied/Volatile
         - Action: Buy/Sell/Hold/Reduce/NoTrade
-        - Execution strategy
+        - Executive summary and Investment rationale grounded in specific evidence from the analysts
+        - Execution strategy: passive/aggressive/iceberg/twap/IDA
         - Volume in MW
         - Price target in EUR/MWh
         - Stop loss in EUR/MWh
         - Maximum imbalance exposure you'll accept
-        - Executive summary and Investment rationale grounded in specific evidence from the analysts
+        - Time horizon for mean reversion in hours (if applicable) + urgency level (low/medium/high) based on time to delivery and signal decay rate
 
         REMEMBER: The goal is NET TRADING VALUE after all costs. A clever NoTrade decision on a marginal signal is worth more than a losing trade on a noisy signal.
 
