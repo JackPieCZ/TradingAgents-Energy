@@ -406,7 +406,8 @@ def query_generation_forecast_updates(
             result["ID Wind Offshore"] = id_forecast.get("Wind Offshore", result["DA Wind Offshore"])
             result["ID Solar"] = id_forecast.get("Solar", result["DA Solar"])
         else:
-            logger.warning(f"Intraday forecast missing for {market_area} on {delivery_date}. Using Day-Ahead as fallback.")
+            logger.warning(
+                f"Intraday forecast missing for {market_area} on {delivery_date}. Using Day-Ahead as fallback.")
             result["ID Wind Onshore"] = result["DA Wind Onshore"]
             result["ID Wind Offshore"] = result["DA Wind Offshore"]
             result["ID Solar"] = result["DA Solar"]
@@ -427,7 +428,8 @@ def query_generation_forecast_updates(
         is_fallback = (result["Wind Delta"] == 0).all() and (result["Solar Delta"] == 0).all()
 
         if is_fallback:
-            logger.warning(f"Intraday forecast updates for {market_area} on {delivery_date} are identical to Day-Ahead forecasts. This likely indicates missing intraday data, and the deltas are all zero. Displaying Day-Ahead baseline only.")
+            logger.warning(
+                f"Intraday forecast updates for {market_area} on {delivery_date} are identical to Day-Ahead forecasts. This likely indicates missing intraday data, and the deltas are all zero. Displaying Day-Ahead baseline only.")
             # Drop the redundant Intraday and Delta columns to save LLM tokens
             cols_to_drop = ["ID Wind Onshore", "ID Wind Offshore", "ID Solar", "Wind Delta", "Solar Delta"]
             result = result.drop(columns=[c for c in cols_to_drop if c in result.columns])
@@ -868,9 +870,12 @@ def query_residual_load(
             wind_total = wind_total.reindex(load.index, method='ffill')
             solar = solar.reindex(load.index, method='ffill')
 
-            result["Wind MW"] = wind_total
-            result["Solar MW"] = solar
-            # result["Residual Load MW"] = result[load_col_name] - wind_total - solar
+            # FIX 1: Explicitly label columns as forecasts to prevent LLM hallucination
+            result["Wind Forecast MW"] = wind_total
+            result["Solar Forecast MW"] = solar
+
+            # FIX 2: Restored the previously commented out calculation
+            result["Residual Load MW"] = result[load_col_name] - wind_total - solar
         else:
             result["Residual Load MW"] = result[load_col_name]
 
@@ -891,7 +896,8 @@ def query_residual_load(
     df = _format_index(df.copy())
 
     type_str = "Actual" if use_actuals else "Forecast"
-    header = f"# Residual Load {type_str} for {market_area} on {delivery_date}\n# Source: ENTSO-E\n# Unit: MW\n\n"
+    # FIX 3: Updated header documentation to reflect the exact mathematical inputs
+    header = f"# Residual Load {type_str} for {market_area} on {delivery_date}\n# Source: ENTSO-E (calculated: Load - Wind Forecast - Solar Forecast)\n# Unit: MW\n\n"
 
     return header + df.to_csv()
 
