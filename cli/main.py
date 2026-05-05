@@ -1,3 +1,23 @@
+from cli.stats_handler import StatsCallbackHandler
+from cli.announcements import fetch_announcements, display_announcements
+from cli.utils import *
+from cli.models import AnalystType
+from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.graph.trading_graph import TradingAgentsGraph
+from rich.rule import Rule
+from rich.align import Align
+from rich import box
+from rich.tree import Tree
+import time
+from collections import deque
+from rich.table import Table
+from rich.text import Text
+from rich.layout import Layout
+from rich.markdown import Markdown
+from rich.columns import Columns
+from rich.live import Live
+from rich.spinner import Spinner
+from rich.panel import Panel
 import logging
 from typing import Optional
 import datetime
@@ -11,27 +31,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 load_dotenv(".env.enterprise", override=False)
-from rich.panel import Panel
-from rich.spinner import Spinner
-from rich.live import Live
-from rich.columns import Columns
-from rich.markdown import Markdown
-from rich.layout import Layout
-from rich.text import Text
-from rich.table import Table
-from collections import deque
-import time
-from rich.tree import Tree
-from rich import box
-from rich.align import Align
-from rich.rule import Rule
 
-from tradingagents.graph.trading_graph import TradingAgentsGraph
-from tradingagents.default_config import DEFAULT_CONFIG
-from cli.models import AnalystType
-from cli.utils import *
-from cli.announcements import fetch_announcements, display_announcements
-from cli.stats_handler import StatsCallbackHandler
 
 console = Console()
 
@@ -70,14 +70,14 @@ class MessageBuffer:
     # analyst_key: which analyst selection controls this section (None = always included)
     # finalizing_agent: which agent must be "completed" for this report to count as done
     REPORT_SECTIONS = {
-    "market_report": ("market", "Price & Technical Analyst"),
-    "sentiment_report": ("social", "System State Analyst"),
-    "news_report": ("news", "Energy News & Regulatory Analyst"),
-    "fundamentals_report": ("fundamentals", "Weather & Forecast Analyst"),
-    "investment_plan": (None, "Research Manager"),
-    "trader_investment_plan": (None, "Trader"),
-    "final_trade_decision": (None, "Portfolio Manager"),
-}
+        "market_report": ("market", "Price & Technical Analyst"),
+        "sentiment_report": ("social", "System State Analyst"),
+        "news_report": ("news", "Energy News & Regulatory Analyst"),
+        "fundamentals_report": ("fundamentals", "Weather & Forecast Analyst"),
+        "investment_plan": (None, "Research Manager"),
+        "trader_investment_plan": (None, "Trader"),
+        "final_trade_decision": (None, "Portfolio Manager"),
+    }
 
     def __init__(self, max_length=100):
         self.messages = deque(maxlen=max_length)
@@ -174,7 +174,7 @@ class MessageBuffer:
             if content is not None:
                 latest_section = section
                 latest_content = content
-               
+
         if latest_section and latest_content:
             # Format the current section for display
             # section_titles = {
@@ -515,7 +515,7 @@ def get_user_selections():
         box_content += f"[dim]{prompt}[/dim]"
         if default:
             box_content += f"\n[dim]Default: {default}[/dim]"
-        return Panel(box_content, border_style="blue", padding=(1, 2))
+        return Panel(box_content, border_style="yellow", padding=(1, 2))
 
     # # Step 1: Ticker symbol
     # console.print(
@@ -538,6 +538,9 @@ def get_user_selections():
         )
     )
     delivery_date = get_delivery_date()
+    console.print(
+        f"[{BRAND_COLOR}]Selected delivery date:[/{BRAND_COLOR}] {delivery_date}"
+    )
 
     # Step 1b: Market Area
     console.print(
@@ -547,6 +550,9 @@ def get_user_selections():
         )
     )
     market_area = select_market_area()
+    console.print(
+        f"[{BRAND_COLOR}]Selected market area:[/{BRAND_COLOR}] {market_area}"
+    )
 
     # # Step 2: Analysis date
     # default_date = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -570,6 +576,9 @@ def get_user_selections():
         )
     )
     trade_timestamp = get_trade_timestamp()
+    console.print(
+        f"[{BRAND_COLOR}]Selected trade timestamp:[/{BRAND_COLOR}] {trade_timestamp}"
+    )
 
     # Step 3: Output language
     console.print(
@@ -588,7 +597,7 @@ def get_user_selections():
     )
     selected_analysts = select_analysts()
     console.print(
-        f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
+        f"[{BRAND_COLOR}]Selected analysts:[/{BRAND_COLOR}] {', '.join(analyst.value for analyst in selected_analysts)}"
     )
 
     # Step 5: Research depth
@@ -598,6 +607,9 @@ def get_user_selections():
         )
     )
     selected_research_depth = select_research_depth()
+    console.print(
+        f"[{BRAND_COLOR}]Selected research depth:[/{BRAND_COLOR}] {selected_research_depth.value}"
+    )
 
     # Step 6: LLM Provider
     console.print(
@@ -606,6 +618,9 @@ def get_user_selections():
         )
     )
     selected_llm_provider, backend_url = select_llm_provider()
+    console.print(
+        f"[{BRAND_COLOR}]Selected LLM provider:[/{BRAND_COLOR}] {selected_llm_provider}"
+    )
 
     # Step 7: Thinking agents
     console.print(
@@ -615,6 +630,9 @@ def get_user_selections():
     )
     selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
     selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
+    console.print(
+        f"[{BRAND_COLOR}]Selected models:[/{BRAND_COLOR}] Shallow thinker: {selected_shallow_thinker}, Deep thinker: {selected_deep_thinker}"
+    )
 
     # Step 8: Provider-specific thinking configuration
     thinking_level = None
@@ -647,6 +665,10 @@ def get_user_selections():
         )
         anthropic_effort = ask_anthropic_effort()
 
+    console.print(
+        f"[{BRAND_COLOR}]Selected thinking level:[/{BRAND_COLOR}] {thinking_level or reasoning_effort or anthropic_effort}"
+    )
+
     return {
         # "ticker": selected_ticker,
         "delivery_date": delivery_date,
@@ -670,6 +692,7 @@ def get_ticker():
     """Get ticker symbol from user input."""
     return typer.prompt("", default="SPY")
 
+
 def get_delivery_date():
     """Get delivery date from user input."""
     while True:
@@ -682,18 +705,43 @@ def get_delivery_date():
         except ValueError:
             console.print("[red]Invalid format. Use YYYY-MM-DD.[/red]")
 
-def select_market_area():
+
+def select_market_area() -> str:
     """Select market area (bidding zone)."""
-    areas = {"1": "CZ", "2": "DE-LU"}
-    console.print("  1. CZ  (Czech Republic — OTE)")
-    console.print("  2. DE-LU  (Germany/Luxembourg — EPEX)")
-    choice = typer.prompt("Select", default="1")
-    return areas.get(choice, "CZ")
+
+    # Define market area options with their corresponding values
+    ZONE_OPTIONS = [
+        ("1. CZ  (Czech Republic — OTE)", "CZ"),
+        ("2. DE-LU  (Germany/Luxembourg — EPEX)", "DE-LU"),
+    ]
+
+    choice = questionary.select(
+        "Select market area (bidding zone):",
+        choices=[
+            questionary.Choice(display, value=value) for display, value in ZONE_OPTIONS
+        ],
+        instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
+        style=questionary.Style(
+            [
+                ("selected", "fg:yellow noinherit"),
+                ("highlighted", "fg:yellow noinherit"),
+                ("pointer", "fg:yellow noinherit"),
+            ]
+        ),
+    ).ask()
+
+    if choice is None:
+        console.print("\n[red]No market area selected. Exiting...[/red]")
+        exit(1)
+
+    return choice
+
 
 def get_trade_timestamp():
     """Get trade timestamp from user input."""
     default = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
     return typer.prompt("", default=default)
+
 
 def get_analysis_date():
     """Get the analysis date from user input."""
@@ -849,7 +897,8 @@ def display_complete_report(final_state):
     # III. Trading Team
     if final_state.get("trader_investment_plan"):
         console.print(Panel("[bold]III. Trading Team Plan[/bold]", border_style="yellow"))
-        console.print(Panel(Markdown(final_state["trader_investment_plan"]), title="Trader", border_style="blue", padding=(1, 2)))
+        console.print(Panel(Markdown(final_state["trader_investment_plan"]),
+                      title="Trader", border_style="blue", padding=(1, 2)))
 
     # IV. Risk Management Team
     if final_state.get("risk_debate_state"):
@@ -869,7 +918,8 @@ def display_complete_report(final_state):
         # V. Portfolio Manager Decision
         if risk.get("judge_decision"):
             console.print(Panel("[bold]V. Portfolio Manager Decision[/bold]", border_style=BRAND_COLOR))
-            console.print(Panel(Markdown(risk["judge_decision"]), title="Portfolio Manager", border_style="blue", padding=(1, 2)))
+            console.print(Panel(Markdown(risk["judge_decision"]),
+                          title="Portfolio Manager", border_style="blue", padding=(1, 2)))
 
 
 def update_research_team_status(status):
@@ -935,6 +985,7 @@ def update_analyst_statuses(message_buffer, chunk):
     if not found_active and selected:
         if message_buffer.agent_status.get("Bull Researcher") == "pending":
             message_buffer.update_agent_status("Bull Researcher", "in_progress")
+
 
 def extract_content_string(content):
     """Extract string content from various message formats.
@@ -1011,6 +1062,7 @@ def format_tool_args(args, max_length=80) -> str:
         return result[:max_length - 3] + "..."
     return result
 
+
 def run_analysis(checkpoint: bool = False):
     # First get all user selections
     selections = get_user_selections()
@@ -1056,9 +1108,9 @@ def run_analysis(checkpoint: bool = False):
 
     # Create result directory
     # results_dir = Path(config["results_dir"]) / selections["ticker"] / selections["analysis_date"]
-    results_dir = (Path(config["results_dir"]) 
-                   / selections["market_area"] 
-                   / selections["delivery_date"] 
+    results_dir = (Path(config["results_dir"])
+                   / selections["market_area"]
+                   / selections["delivery_date"]
                    / selections["trade_timestamp"].replace(":", ""))
     results_dir.mkdir(parents=True, exist_ok=True)
     report_dir = results_dir / "reports"
@@ -1074,12 +1126,12 @@ def run_analysis(checkpoint: bool = False):
     # Strip existing stream handlers to prevent console pollution
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-        
+
     # Send all logs into the file instead
     run_log_file = results_dir / "run.log"
     file_handler = logging.FileHandler(run_log_file, encoding="utf-8")
     file_handler.setFormatter(logging.Formatter(
-        "[%(levelname)s] %(asctime)s - %(name)s - %(message)s", 
+        "[%(levelname)s] %(asctime)s - %(name)s - %(message)s",
         datefmt="%H:%M:%S"
     ))
     root_logger.addHandler(file_handler)
@@ -1087,6 +1139,7 @@ def run_analysis(checkpoint: bool = False):
 
     def save_message_decorator(obj, func_name):
         func = getattr(obj, func_name)
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             func(*args, **kwargs)
@@ -1095,9 +1148,10 @@ def run_analysis(checkpoint: bool = False):
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(f"{timestamp} [{message_type}] {content}\n")
         return wrapper
-    
+
     def save_tool_call_decorator(obj, func_name):
         func = getattr(obj, func_name)
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             func(*args, **kwargs)
@@ -1109,6 +1163,7 @@ def run_analysis(checkpoint: bool = False):
 
     def save_report_section_decorator(obj, func_name):
         func = getattr(obj, func_name)
+
         @wraps(func)
         def wrapper(section_name, content):
             func(section_name, content)
@@ -1160,8 +1215,8 @@ def run_analysis(checkpoint: bool = False):
         #     f"Analyzing {selections['ticker']} on {selections['analysis_date']}..."
         # )
         spinner_text = (
-        f"Analyzing {selections['market_area']} delivery {selections['delivery_date']} "
-        f"as of {selections['trade_timestamp']}..."
+            f"Analyzing {selections['market_area']} delivery {selections['delivery_date']} "
+            f"as of {selections['trade_timestamp']}..."
         )
         update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
@@ -1306,8 +1361,8 @@ def run_analysis(checkpoint: bool = False):
     if save_choice in ("Y", "YES"):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         # default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
-        default_path = (Path.cwd() / "reports" 
-                    / f"{selections['market_area']}_{selections['delivery_date']}_{timestamp}")
+        default_path = (Path.cwd() / "reports"
+                        / f"{selections['market_area']}_{selections['delivery_date']}_{timestamp}")
         save_path_str = typer.prompt(
             "Save path (press Enter for default)",
             default=str(default_path)
@@ -1316,8 +1371,8 @@ def run_analysis(checkpoint: bool = False):
         try:
             # report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
             report_file = save_report_to_disk(
-                final_state, 
-                f"{selections['market_area']}_{selections['delivery_date']}", 
+                final_state,
+                f"{selections['market_area']}_{selections['delivery_date']}",
                 save_path,
             )
             console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
