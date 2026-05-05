@@ -41,8 +41,6 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, Tuple, List, Optional
 
-import yfinance as yf
-
 logger = logging.getLogger(__name__)
 
 
