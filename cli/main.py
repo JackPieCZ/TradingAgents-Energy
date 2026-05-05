@@ -485,11 +485,12 @@ def get_user_selections():
 
     # Create welcome box content
     welcome_content = f"{welcome_ascii}\n"
-    welcome_content += f"[{BRAND_STYLE}]TradingAgents: Multi-Agents LLM Energy Trading Framework - CLI[/{BRAND_STYLE}]\n\n"
+    welcome_content += f"[{BRAND_STYLE}]TradingAgents Energy: Multi-Agents LLM Power Trading Framework - CLI[/{BRAND_STYLE}]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
     welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
     welcome_content += (
-        "[dim]Built by [Tauric Research & Jakub Kolar](https://github.com/JackPieCZ/TradingAgents-private)[/dim]"
+        "[dim]Adapted from [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) "
+        "for European electricity intraday markets[/dim]"
     )
 
     # Create and center the welcome box
@@ -497,8 +498,8 @@ def get_user_selections():
         welcome_content,
         border_style=BRAND_COLOR,
         padding=(1, 2),
-        title="Welcome to TradingAgents-Energy",
-        subtitle="Multi-Agents LLM Energy Trading Framework",
+        title="TradingAgents-Energy",
+        subtitle="Multi-Agents LLM European Electricity Intraday Trading Framework",
     )
     console.print(Align.center(welcome_box))
     console.print()
@@ -798,7 +799,14 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path):
             sections.append(f"## V. Portfolio Manager Decision\n\n### Portfolio Manager\n{risk['judge_decision']}")
 
     # Write consolidated report
-    header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    # header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    header = (
+        f"# Energy Trading Analysis Report\n\n"
+        f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"Market Area: {final_state.get('market_area', 'N/A')}\n"
+        f"Delivery Period: {final_state.get('delivery_period', 'N/A')}\n"
+        f"Regime: {final_state.get('regime_indicator', 'N/A')}\n\n"
+    )
     (save_path / "complete_report.md").write_text(header + "\n\n".join(sections), encoding="utf-8")
     return save_path / "complete_report.md"
 
