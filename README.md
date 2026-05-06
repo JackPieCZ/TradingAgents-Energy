@@ -132,8 +132,8 @@ References: `Kre21b` (autoregressive terms, cross-contract features), `Hir22`/`H
 
 ```bash
 # Clone the repository
-git clone https://github.com/JackPieCZ/TradingAgents-private.git
-cd TradingAgents-private
+git clone https://github.com/JackPieCZ/TradingAgents-Energy.git
+cd TradingAgents-Energy
 
 # Create and activate conda environment
 conda create -n tradingagents python=3.13
