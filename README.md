@@ -18,23 +18,23 @@ The framework orchestrates a pipeline of specialized agents, each backed by real
 │  1. Weather & Forecast Analyst (fundamentals_analyst.py)   │
 │     └─ Wind/solar forecasts, forecast revisions, weather   │
 │                         ↓ context                          │
-│  2. System State Analyst (social_media_analyst.py)          │
+│  2. System State Analyst (social_media_analyst.py)         │
 │     └─ Residual load, merit order, outages, regime class.  │
 │                         ↓ context                          │
-│  3. Energy News & Regulatory Analyst (news_analyst.py)      │
+│  3. Energy News & Regulatory Analyst (news_analyst.py)     │
 │     └─ REMIT UMMs, outage notifications, demand surprises  │
 │                         ↓ context                          │
-│  4. Price & Technical Analyst (market_analyst.py)           │
+│  4. Price & Technical Analyst (market_analyst.py)          │
 │     └─ Intraday prices, DA spreads, IDA auctions, Hurst    │
 └────────────────────────────────────────────────────────────┘
                               ↓
-        ┌──── Research Team: Bull ↔ Bear Debate ────┐
+        ┌──── Research Team: Bull ↔ Bear Debate  ────┐
         │        Research Manager Synthesis          │
         └────────────────────────────────────────────┘
                               ↓
                     Trader (execution proposal)
                               ↓
-    ┌──── Risk Team: Aggressive ↔ Conservative ↔ Neutral ────┐
+    ┌────  Risk Team: Aggressive ↔ Conservative ↔ Neutral ────┐
     └─────────────────────────────────────────────────────────┘
                               ↓
               Portfolio Manager (final decision)
