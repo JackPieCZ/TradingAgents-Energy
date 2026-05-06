@@ -61,6 +61,7 @@ def create_conservative_debator(llm):
         conservative_history = risk_debate_state.get("conservative_history", "")
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
+        trade_timestamp = state.get("trade_date", "")
 
         current_aggressive_response = risk_debate_state.get("current_aggressive_response", "")
         current_neutral_response = risk_debate_state.get("current_neutral_response", "")
@@ -73,7 +74,7 @@ def create_conservative_debator(llm):
         trader_decision = state["trader_investment_plan"]
 
         prompt = f"""You are the Conservative Risk Analyst on a power trading desk.
-You evaluate the Trader's proposed position for delivery period {delivery_period} in {market_area}.
+You evaluate the Trader's proposed position for delivery period {delivery_period} in {market_area} with trade timestamp {trade_timestamp}.
 
 You favor REDUCING or REJECTING the trade when:
 - The forecast signal is noisy (small delta, high forecast uncertainty)

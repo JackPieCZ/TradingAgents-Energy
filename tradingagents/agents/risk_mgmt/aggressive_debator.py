@@ -63,6 +63,7 @@ def create_aggressive_debator(llm):
         current_neutral_response = risk_debate_state.get("current_neutral_response", "")
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
+        trade_timestamp = state.get("trade_date", "")
 
         market_research_report = state["market_report"]
         sentiment_report = state["sentiment_report"]
@@ -72,7 +73,7 @@ def create_aggressive_debator(llm):
         trader_decision = state["trader_investment_plan"]
 
         prompt = f"""You are the Aggressive Risk Analyst on a European power trading desk.
-You evaluate the Trader's proposed position for delivery period {delivery_period} in {market_area}.
+You evaluate the Trader's proposed position for delivery period {delivery_period} in {market_area} with trade timestamp {trade_timestamp}.
 You favor TAKING the trade when:
 - The forecast revision signal is strong (>2 GW wind/solar delta)
 - The regime is clear (Stressed or Oversupplied — not ambiguous)

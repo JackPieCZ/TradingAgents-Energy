@@ -15,7 +15,7 @@ developments that could affect electricity prices for the target delivery period
 MARKET CONTEXT:
 - Delivery period: {delivery_period}
 - Market area: {market_area}
-- Current time: {current_date}
+- Trade timestamp: {trade_timestamp}
 
 ANALYTICAL WORKFLOW:
 1. Retrieve outage notifications (get_outage_notifications) — planned and unplanned
@@ -116,7 +116,7 @@ def create_news_analyst(llm, tools):
     def news_analyst_node(state):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
-        current_date = state.get("trade_date", "")
+        trade_timestamp = state.get("trade_date", "")
         system_message = (
             "Focus on REMIT Urgent Market Messages (UMMs) regarding the capacity and use of facilities, "
             "specifically planned maintenance and unplanned outages. Under REMIT, timely public disclosure "
@@ -132,7 +132,7 @@ def create_news_analyst(llm, tools):
         prompt = prompt.partial(
             system_message=system_message,
             tool_names=", ".join([tool.name for tool in tools]),
-            current_date=current_date,
+            trade_timestamp=trade_timestamp,
             delivery_period=delivery_period,
             market_area=market_area,
         )

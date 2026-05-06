@@ -70,13 +70,14 @@ def create_trader(llm):
         investment_plan = state["investment_plan"]
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
+        trade_timestamp = state.get("trade_date", "")
 
         messages = [
             {
                 "role": "system",
                 "content": (
                     f"""You are the Trader on a European electricity intraday trading desk. Based on the Research Manager's plan, propose a specific trade for delivery period {delivery_period}
-                    in {market_area}.
+                    in {market_area} with trade timestamp {trade_timestamp}. 
                     Your proposal MUST specify:
                     1. ACTION: Buy / Sell / Hold / Reduce / NoTrade
                     2. VOLUME: Position size in MW (typical range: 1-30 MW)

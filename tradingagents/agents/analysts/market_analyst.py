@@ -15,7 +15,7 @@ and cross-product pricing to identify trading opportunities.
 MARKET CONTEXT:
 - Delivery period: {delivery_period}
 - Market area: {market_area}
-- Current time: {current_date}
+- Trade timestamp: {trade_timestamp}
 
 Few tips to guide your analysis: {system_message}
 
@@ -44,7 +44,7 @@ KEY PRICE ANALYSIS:
   → Close to delivery: spreads tighten, prices more accurate, less opportunity
   →  Final 60 min: volatility typically spikes, distributions become heavy-tailed, but liquidity improves
   → BID-ASK SPREAD follows an L-SHAPE: high at session start, decreasing as delivery approaches, with a small spike at the very end when order book thins
-  → 80% of volume is traded in the LAST 3 HOURS of the trading session
+  → 80 percent of volume is traded in the LAST 3 HOURS of the trading session
   → Forecast errors paradoxically DECREASE spreads — they create a need to trade → more volume → tighter spreads
   → Steep merit order → heavier distribution tails → more spike risk
 
@@ -166,7 +166,7 @@ def create_market_analyst(llm, tools):
     def market_analyst_node(state):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
-        current_date = state.get("trade_date", "")
+        trade_timestamp = state.get("trade_date", "")
         system_message = (
             "Focus on the volume-weighted average prices (VWAP) and their deviations from the day-ahead anchor. "
             "Remember that intraday price changes exhibit strong autoregressive features and mean reversion. "
@@ -182,7 +182,7 @@ def create_market_analyst(llm, tools):
         prompt = prompt.partial(
             system_message=system_message,
             tool_names=", ".join([tool.name for tool in tools]),
-            current_date=current_date,
+            trade_timestamp=trade_timestamp,
             delivery_period=delivery_period,
             market_area=market_area,
         )

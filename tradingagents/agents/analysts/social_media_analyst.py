@@ -10,7 +10,7 @@ and outages — to classify the current market regime and identify structural pr
 MARKET CONTEXT:
 - Delivery period: {delivery_period}
 - Market area: {market_area}
-- Current time: {current_date}
+- Trade timestamp: {trade_timestamp}
 
 ANALYTICAL WORKFLOW:
 1. Retrieve residual load forecast (xref_residual load (include both CZ and DE-LU) get_residual_load (only CZ)) — this is load minus wind minus solar
@@ -139,7 +139,7 @@ def create_social_media_analyst(llm, tools):
     def social_media_analyst_node(state):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
-        current_date = state.get("trade_date", "")
+        trade_timestamp = state.get("trade_date", "")
         system_message = (
             f"You are evaluating the system state for the {market_area} electricity market, delivery on {delivery_period}. "
             f"Key framework elements to consider:\n"
@@ -154,7 +154,7 @@ def create_social_media_analyst(llm, tools):
         ])
         prompt = prompt.partial(
             tool_names=", ".join([tool.name for tool in tools]),
-            current_date=current_date,
+            trade_timestamp=trade_timestamp,
             delivery_period=delivery_period,
             market_area=market_area,
         )

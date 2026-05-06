@@ -55,6 +55,7 @@ def create_bull_researcher(llm):
         bull_history = investment_debate_state.get("bull_history", "")
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
+        trade_timestamp = state.get("trade_date", "")
 
         current_response = investment_debate_state.get("current_response", "")
         market_research_report = state["market_report"]
@@ -64,7 +65,7 @@ def create_bull_researcher(llm):
 
         prompt = f"""You are the Bullish Researcher (arguing FOR a LONG/BUY position) on a European
 electricity intraday trading desk.
-You are analyzing the {market_area} market for delivery period {delivery_period}.
+You are analyzing the {market_area} market for delivery period {delivery_period} with trade timestamp {trade_timestamp}.
 Given the analyst reports, argue for going LONG (buying power for this delivery period) if any of
 these conditions hold:
 1. FORECAST REVISION SIGNAL: Wind/solar forecast revised downward → less renewable supply → prices should rise above day-ahead level. Look for asymmetric upside risk and high confidence in the forecast delta.

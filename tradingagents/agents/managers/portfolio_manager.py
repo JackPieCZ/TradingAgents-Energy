@@ -112,8 +112,10 @@ def create_portfolio_manager(llm):
 
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
+        trade_timestamp = state.get("trade_date", "")
 
         prompt = f"""You are the Portfolio Manager making the final trading decision for delivery period {delivery_period} in {market_area}.
+        with trade timestamp: {trade_timestamp}
 
         Review the Trader's proposal and the Risk Team's debate. Make your final decision considering:
 

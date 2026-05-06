@@ -72,11 +72,12 @@ def create_research_manager(llm):
         history = state["investment_debate_state"].get("history", "")
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
+        trade_timestamp = state.get("trade_date", "")
 
         investment_debate_state = state["investment_debate_state"]
 
         prompt = f"""
-        You are the Research Manager synthesizing the analyst reports and bull/bear debate for delivery period {delivery_period} in {market_area}.
+        You are the Research Manager synthesizing the analyst reports and bull/bear debate for delivery period {delivery_period} in {market_area} with trade timestamp {trade_timestamp}.
         As the Research Manager and debate facilitator, your role is to critically evaluate this round of debate and deliver a clear, actionable investment plan for the trader.
         You have four analyst reports:
         1. Weather & Forecast Analyst (fundamentals_report): Forecast revisions, weather data

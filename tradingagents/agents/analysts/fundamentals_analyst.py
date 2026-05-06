@@ -73,7 +73,7 @@ def create_fundamentals_analyst(llm, tools):
     def fundamentals_analyst_node(state):
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
-        current_date = state.get("trade_date", "")
+        trade_timestamp = state.get("trade_date", "")
         system_message = (
             "Focus on wind and solar forecast revisions since the day-ahead auction. "
             "For CZ: solar is the dominant variable force (~2.5 GW installed), wind is negligible (~350 MW). "
@@ -89,7 +89,7 @@ and what the day-ahead market priced in — are the PRIMARY source of alpha in i
 MARKET CONTEXT:
 - Delivery period: {delivery_period}
 - Market area: {market_area}
-- Current time: {current_date}
+- Trade timestamp: {trade_timestamp}
 
 Few tips to guide your analysis: {system_message}
 
@@ -153,7 +153,7 @@ You have access to the following tools: {tool_names}."""
         prompt = prompt.partial(
             system_message=system_message,
             tool_names=", ".join([tool.name for tool in tools]),
-            current_date=current_date,
+            trade_timestamp=trade_timestamp,
             delivery_period=delivery_period,
             market_area=market_area,
         )

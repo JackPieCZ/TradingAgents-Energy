@@ -16,7 +16,8 @@ def create_neutral_debator_exchange(llm):
 
         trader_decision = state["trader_investment_plan"]
 
-        prompt = f"""As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach, evaluating the upsides and downsides while factoring in broader market trends, potential economic shifts, and diversification strategies.Here is the trader's decision:
+        prompt = f"""As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach, evaluating the upsides and downsides while factoring in broader market trends, potential economic shifts, and diversification strategies. 
+        Here is the trader's decision:
 
 {trader_decision}
 
@@ -63,6 +64,7 @@ def create_neutral_debator(llm):
 
         delivery_period = state.get("delivery_period", state.get("company_of_interest", ""))
         market_area = state.get("market_area", "CZ")
+        trade_timestamp = state.get("trade_date", "")
 
         market_research_report = state["market_report"]
         sentiment_report = state["sentiment_report"]
@@ -73,7 +75,7 @@ def create_neutral_debator(llm):
 
         prompt = f"""
         You are the Neutral Risk Analyst on a European power trading desk.
-        You synthesize the Aggressive and Conservative perspectives for delivery period {delivery_period} in {market_area}.
+        You synthesize the Aggressive and Conservative perspectives for delivery period {delivery_period} in {market_area} with trade timestamp {trade_timestamp}.
         As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach, evaluating the upsides and downsides.
 
         Your framework:
