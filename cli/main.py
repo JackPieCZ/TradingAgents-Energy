@@ -162,30 +162,12 @@ class MessageBuffer:
     def update_report_section(self, section_name, content):
         if section_name in self.report_sections:
             self.report_sections[section_name] = content
-            self._update_current_report()
+            self._update_current_report(section_name)
 
-    def _update_current_report(self):
-        # For the panel display, only show the most recently updated section
-        latest_section = None
-        latest_content = None
-
-        # Find the most recently updated section
-        for section, content in self.report_sections.items():
-            if content is not None:
-                latest_section = section
-                latest_content = content
-
-        if latest_section and latest_content:
+    def _update_current_report(self, latest_section=None):
+        if latest_section and self.report_sections.get(latest_section):
+            latest_content = self.report_sections[latest_section]
             # Format the current section for display
-            # section_titles = {
-            #     "market_report": "Market Analysis",
-            #     "sentiment_report": "Social Sentiment",
-            #     "news_report": "News Analysis",
-            #     "fundamentals_report": "Fundamentals Analysis",
-            #     "investment_plan": "Research Team Decision",
-            #     "trader_investment_plan": "Trading Team Plan",
-            #     "final_trade_decision": "Portfolio Management Decision",
-            # }
             section_titles = {
                 "market_report": "Price & Technical Analysis",
                 "sentiment_report": "System State Analysis",
@@ -196,7 +178,7 @@ class MessageBuffer:
                 "final_trade_decision": "Portfolio Management Decision",
             }
             self.current_report = (
-                f"### {section_titles[latest_section]}\n{latest_content}"
+                f"### {section_titles.get(latest_section, latest_section)}\n{latest_content}"
             )
 
         # Update the final complete report
@@ -357,7 +339,7 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
             progress_table.add_row("", agent_display, status_cell)
 
         # Add horizontal line after each team
-        # progress_table.add_row("─" * 20, "─" * 20, "─" * 20, style="dim")
+        progress_table.add_row("─" * 16, "─" * 24, "─" * 18, style="dim")
 
     layout["progress"].update(
         Panel(progress_table, title="Progress", border_style="cyan", padding=(0, 2))
