@@ -502,16 +502,6 @@ def get_user_selections():
             box_content += f"\n[dim]Default: {default}[/dim]"
         return Panel(box_content, border_style="yellow", padding=(1, 2))
 
-    # # Step 1: Ticker symbol
-    # console.print(
-    #     create_question_box(
-    #         "Step 1: Ticker Symbol",
-    #         "Enter the exact ticker symbol to analyze, including exchange suffix when needed (examples: SPY, CNC.TO, 7203.T, 0700.HK)",
-    #         "SPY",
-    #     )
-    # )
-    # selected_ticker = get_ticker()
-
     # Step 1: Delivery Date (replaces Ticker Symbol)
     default_date = datetime.datetime.now().strftime("%Y-%m-%d")
     console.print(
@@ -538,17 +528,6 @@ def get_user_selections():
     console.print(
         f"[{BRAND_COLOR}]Selected market area:[/{BRAND_COLOR}] {market_area}"
     )
-
-    # # Step 2: Analysis date
-    # default_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    # console.print(
-    #     create_question_box(
-    #         "Step 2: Analysis Date",
-    #         "Enter the analysis date (YYYY-MM-DD)",
-    #         default_date,
-    #     )
-    # )
-    # analysis_date = get_analysis_date()
 
     # Step 2: Trade Timestamp
     default_timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
@@ -655,10 +634,8 @@ def get_user_selections():
     )
 
     return {
-        # "ticker": selected_ticker,
         "delivery_date": delivery_date,
         "market_area": market_area,
-        # "analysis_date": analysis_date,
         "trade_timestamp": trade_timestamp,
         "analysts": selected_analysts,
         "research_depth": selected_research_depth,
@@ -1173,14 +1150,6 @@ def run_analysis(checkpoint: bool = False):
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
         # Add initial messages
-        # message_buffer.add_message("System", f"Selected ticker: {selections['ticker']}")
-        # message_buffer.add_message(
-        #     "System", f"Analysis date: {selections['analysis_date']}"
-        # )
-        # message_buffer.add_message(
-        #     "System",
-        #     f"Selected analysts: {', '.join(analyst.name.lower().capitalize() for analyst in selections['analysts'])}",
-        # )
         message_buffer.add_message("System", f"Delivery date: {selections['delivery_date']}")
         message_buffer.add_message("System", f"Market area: {selections['market_area']}")
         message_buffer.add_message("System", f"Trade timestamp: {selections['trade_timestamp']}")
@@ -1197,9 +1166,6 @@ def run_analysis(checkpoint: bool = False):
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
         # Create spinner text
-        # spinner_text = (
-        #     f"Analyzing {selections['ticker']} on {selections['analysis_date']}..."
-        # )
         spinner_text = (
             f"Analyzing {selections['market_area']} delivery {selections['delivery_date']} "
             f"as of {selections['trade_timestamp']}..."
@@ -1207,9 +1173,6 @@ def run_analysis(checkpoint: bool = False):
         update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
         # Initialize state and get graph args with callbacks
-        # init_agent_state = graph.propagator.create_initial_state(
-        #     selections["ticker"], selections["analysis_date"]
-        # )
         init_agent_state = graph.propagator.create_initial_state(
             delivery_period=selections["delivery_date"],
             trade_timestamp=selections["trade_timestamp"],
