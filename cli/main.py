@@ -470,7 +470,7 @@ def get_user_selections():
 
     # Create welcome box content
     welcome_content = f"{welcome_ascii}\n"
-    welcome_content += f"[{BRAND_STYLE}]TradingAgents Energy: Multi-Agents LLM Power Trading Framework - CLI[/{BRAND_STYLE}]\n\n"
+    welcome_content += f"[{BRAND_STYLE}]TradingAgents Energy: Multi-Agents LLM-Powered Trading Framework - CLI[/{BRAND_STYLE}]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
     welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
     welcome_content += (

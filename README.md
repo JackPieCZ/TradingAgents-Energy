@@ -11,39 +11,19 @@ A fork of [TauricResearch/TradingAgents](https://github.com/TauricResearch/Tradi
 
 Built on the TradingAgents architecture ([arXiv:2412.20138v7](https://arxiv.org/abs/2412.20138v7)) with domain adaptations informed by 27 academic papers on intraday electricity price formation, forecast-driven trading, and market microstructure.
 
+<p align="center">
+  <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
+</p>
+
 ---
 
 ## Architecture
 
 The framework orchestrates a pipeline of specialized agents, each backed by real European energy market data:
 
-```
-┌─────────────────────── Analyst Team ───────────────────────┐
-│                                                            │
-│  1. Weather & Forecast Analyst (fundamentals_analyst.py)   │
-│     └─ Wind/solar forecasts, forecast revisions, weather   │
-│                         ↓ context                          │
-│  2. System State Analyst (social_media_analyst.py)         │
-│     └─ Residual load, merit order, outages, regime class.  │
-│                         ↓ context                          │
-│  3. Energy News & Regulatory Analyst (news_analyst.py)     │
-│     └─ REMIT UMMs, outage notifications, demand surprises  │
-│                         ↓ context                          │
-│  4. Price & Technical Analyst (market_analyst.py)          │
-│     └─ Intraday prices, DA spreads, IDA auctions, Hurst    │
-└────────────────────────────────────────────────────────────┘
-                              ↓
-        ┌──── Research Team: Bull ↔ Bear Debate  ────┐
-        │        Research Manager Synthesis          │
-        └────────────────────────────────────────────┘
-                              ↓
-                    Trader (execution proposal)
-                              ↓
-    ┌────  Risk Team: Aggressive ↔ Conservative ↔ Neutral ────┐
-    └─────────────────────────────────────────────────────────┘
-                              ↓
-              Portfolio Manager (final decision)
-```
+<p align="center">
+  <img src="assets/schema.png" style="width: 100%; height: auto;">
+</p>
 
 ### Analyst Team
 
@@ -207,6 +187,16 @@ The CLI guides you through:
 6. **Research depth** — number of debate rounds
 7. **LLM provider** — Google, OpenAI, Anthropic, or xAI
 8. **Model selection** — fast thinker and deep thinker models
+
+An interface will appear showing results as they load, letting you track the agent's progress as it runs.
+
+<p align="center">
+  <img src="assets/cli/cli_news.png" width="100%" style="display: inline-block; margin: 0 2%;">
+</p>
+
+<p align="center">
+  <img src="assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
+</p>
 
 ---
 
