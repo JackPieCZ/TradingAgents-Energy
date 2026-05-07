@@ -4,7 +4,12 @@
 
 A fork of [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) adapted for European power markets. Uses a team of specialized AI agents to analyze electricity market data, debate trading opportunities, and produce structured trading decisions for intraday continuous and IDA auction markets.
 
-> **Research foundation:** Built on the TradingAgents architecture ([arXiv:2412.20138v7](https://arxiv.org/abs/2412.20138v7)) with domain adaptations informed by 27 academic papers on intraday electricity price formation, forecast-driven trading, and market microstructure.
+```diff
++ Total Lines Added (+)   : 24,695
+- Total Lines Deleted (-) : 6,795
+```
+
+Built on the TradingAgents architecture ([arXiv:2412.20138v7](https://arxiv.org/abs/2412.20138v7)) with domain adaptations informed by 27 academic papers on intraday electricity price formation, forecast-driven trading, and market microstructure.
 
 ---
 
@@ -45,7 +50,6 @@ The framework orchestrates a pipeline of specialized agents, each backed by real
 The Analyst Team runs four specialized agents in sequence. Each agent appends a concise summary to
 a shared `analyst_context` field so that later analysts can see what earlier analysts discovered —
 without carrying the full message history forward.
-
 
 **1. Weather & Forecast Analyst** (`fundamentals_analyst.py`) — *most important agent; primary alpha source*
 
@@ -113,6 +117,7 @@ References: `Kre21b` (autoregressive terms, cross-contract features), `Hir22`/`H
 | **DE-LU** (Germany/Luxembourg) | ENTSO-E, SMARD, Open-Meteo | DA prices, generation by type, load, residual load, cross-border flows |
 
 **Data sources** (all free, zero-cost stack):
+
 - **ENTSO-E Transparency Platform** — DA prices, generation forecasts, actual generation, load, cross-border flows, outages (REMIT), imbalance prices
 - **OTE SOAP API** — Czech DA, intraday continuous, IDA auctions, imbalance settlement
 - **SMARD** — German generation by fuel type, load, residual load
@@ -193,6 +198,7 @@ python -m cli.main
 ```
 
 The CLI guides you through:
+
 1. **Delivery date** — which day's delivery periods to analyze
 2. **Market area** — CZ or DE-LU
 3. **Trade timestamp** — when the analysis is being run
