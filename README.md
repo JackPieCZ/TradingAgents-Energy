@@ -8,6 +8,7 @@ A fork of [TauricResearch/TradingAgents](https://github.com/TauricResearch/Tradi
 + Total Lines Added (+)   : 24,695
 - Total Lines Deleted (-) : 6,795
 ```
+For the full summary of changes see ([CHANGELOG.md](https://github.com/JackPieCZ/TradingAgents-Energy/blob/main/CHANGELOG.md))
 
 Built on the TradingAgents architecture ([arXiv:2412.20138v7](https://arxiv.org/abs/2412.20138v7)) with domain adaptations informed by 27 academic papers on intraday electricity price formation, forecast-driven trading, and market microstructure.
 
